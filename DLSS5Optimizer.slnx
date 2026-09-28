@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Dlss5Optimizer.App/Dlss5Optimizer.App.csproj" />
+    <Project Path="src/Dlss5Optimizer.Core/Dlss5Optimizer.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Dlss5Optimizer.Core.Tests/Dlss5Optimizer.Core.Tests.csproj" />
+  </Folder>
+</Solution>

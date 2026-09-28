@@ -43,7 +43,7 @@ public sealed record InstallPlan(
     public IEnumerable<ManualStep> ManualSteps => Steps.OfType<ManualStep>();
 }
 
-public sealed record ManifestEntry(string RelativePath, bool Existed, string? InstalledSha256);
+public sealed record ManifestEntry(string RelativePath, bool Existed, string? InstalledSha256, long Size = -1, DateTime LastWriteUtc = default);
 
 public sealed record InstallManifest(
     int FormatVersion,
@@ -151,7 +151,7 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
                 FormatVersion: 1,
                 InstalledAt: DateTimeOffset.Now,
                 Config: plan.Config,
-                Files: touched.Select(kv => new ManifestEntry(kv.Key, kv.Value, HashIfExists(Path.Combine(gameDir, kv.Key)))).ToList(),
+                Files: touched.Select(kv => Entry(gameDir, kv.Key, kv.Value)).ToList(),
                 CreatedDirectories: createdDirs,
                 CleanupPatterns: plan.CleanupPatterns.ToList(),
                 PreexistingFiles: preexisting);
@@ -230,8 +230,15 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
                 continue; // bewusst entfernte Datei
             var p = Path.Combine(gameDir, f.RelativePath);
             if (!File.Exists(p))
+            {
                 problems.Add($"{f.RelativePath} fehlt");
-            else if (f.InstalledSha256 is not null && !ComponentStore.Sha256Of(p).Equals(f.InstalledSha256, StringComparison.OrdinalIgnoreCase))
+                continue;
+            }
+            // Schneller Weg: Größe und Zeitstempel unverändert ⇒ Datei unverändert (spart das Hashen großer DLLs).
+            var info = new FileInfo(p);
+            if (info.Length == f.Size && info.LastWriteTimeUtc == f.LastWriteUtc)
+                continue;
+            if (!ComponentStore.Sha256Of(p).Equals(f.InstalledSha256, StringComparison.OrdinalIgnoreCase))
                 problems.Add($"{f.RelativePath} wurde ersetzt (Spiel-Update?)");
         }
         return problems;
@@ -276,7 +283,14 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
         }
     }
 
-    private static string? HashIfExists(string path) => File.Exists(path) ? ComponentStore.Sha256Of(path) : null;
+    private static ManifestEntry Entry(string gameDir, string rel, bool existed)
+    {
+        var path = Path.Combine(gameDir, rel);
+        if (!File.Exists(path))
+            return new ManifestEntry(rel, existed, null);
+        var info = new FileInfo(path);
+        return new ManifestEntry(rel, existed, ComponentStore.Sha256Of(path), info.Length, info.LastWriteTimeUtc);
+    }
 
     internal static string SafePath(string root, string relative)
     {

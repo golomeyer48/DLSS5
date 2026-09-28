@@ -64,8 +64,12 @@ public sealed class GameAnalyzer(GameDatabase db)
         else
             evidence.Add($"Architektur: {(bitness == Bitness.X64 ? "64-Bit" : bitness == Bitness.X86 ? "32-Bit" : bitness.ToString())}");
 
+        // Der String-Scan liest die ganze EXE – nur wenn die Imports nichts Eindeutiges sagen oder
+        // es ein Unreal-Spiel ist (dort stehen Engine-Version und RHI-Module nur als Strings drin).
+        bool strongImport = pe is not null && pe.AllImports.Any(i => ImportRules.Any(r => r.Dll == i && r.Weight >= 0.8));
+        bool unrealExe = exe.EndsWith("-Win64-Shipping.exe", StringComparison.OrdinalIgnoreCase) || files.HasDirectory("Engine");
         var needles = StringRules.Select(r => r.Needle).Append(Ue5Marker).Append(Ue4Marker).ToArray();
-        var strings = BinaryStringScanner.FindAny(exe, needles);
+        var strings = strongImport && !unrealExe ? [] : BinaryStringScanner.FindAny(exe, needles);
 
         var engine = DetectEngine(files, exe, strings, evidence);
         var scores = new Dictionary<GraphicsApi, double>();

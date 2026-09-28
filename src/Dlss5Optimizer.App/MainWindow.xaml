@@ -1,0 +1,371 @@
+<Window x:Class="Dlss5Optimizer.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Dlss5Optimizer.App.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="DLSS5 Optimizer" Width="1360" Height="880" MinWidth="1060" MinHeight="640"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="120" />
+        </Grid.RowDefinitions>
+
+        <!-- Kopfzeile -->
+        <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="20,12">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding GpuText}" HorizontalAlignment="Right" />
+                    <TextBlock HorizontalAlignment="Right" Style="{StaticResource Muted}">
+                        <Run Text="Treiber" /> <Run Text="{Binding DriverText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding DisplayText, Mode=OneWay}" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{StaticResource AccentBrush}" CornerRadius="6" Width="34" Height="34" Margin="0,0,12,0">
+                        <TextBlock Text="5" FontSize="20" FontWeight="Bold" Foreground="#0B0D10" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="DLSS5 Optimizer" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding SystemVerdict}" Style="{StaticResource Muted}" />
+                    </StackPanel>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="0">
+            <!-- ================================================================ Spiele -->
+            <TabItem Header="Spiele">
+                <Grid Margin="16,12,16,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="340" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Spieleliste -->
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top">
+                            <WrapPanel>
+                                <Button Content="Bibliotheken scannen" Command="{Binding ScanCommand}" Style="{StaticResource PrimaryButton}" />
+                                <Button Content="Ordner hinzufügen …" Command="{Binding AddFolderCommand}" />
+                            </WrapPanel>
+                            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" ToolTip="Spiele filtern" />
+                        </StackPanel>
+                        <ListBox ItemsSource="{Binding GamesView}" SelectedItem="{Binding SelectedGame}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:GameItemViewModel}">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Right" CornerRadius="10" Padding="8,2" VerticalAlignment="Top"
+                                                BorderThickness="1" BorderBrush="{Binding StatusKind, Converter={StaticResource StatusBrush}}">
+                                            <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="{Binding StatusKind, Converter={StaticResource StatusBrush}}" />
+                                        </Border>
+                                        <StackPanel Margin="0,0,8,0">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock FontSize="11" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis">
+                                                <Run Text="{Binding SourceText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding ApiText, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+
+                    <!-- Details -->
+                    <TextBlock Grid.Column="2" Text="Links ein Spiel auswählen." Style="{StaticResource Muted}" Margin="0,40,0,0" HorizontalAlignment="Center"
+                               Visibility="{Binding SelectedGame, Converter={StaticResource NullToCollapsed}, ConverterParameter=invert}" />
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding SelectedGame, Converter={StaticResource NullToCollapsed}}">
+                        <StackPanel DataContext="{Binding SelectedGame}" Margin="0,0,8,16">
+                            <!-- Spielkopf -->
+                            <DockPanel Margin="0,0,0,12">
+                                <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Top">
+                                    <Button Content="Ordner öffnen" Command="{Binding DataContext.OpenGameFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                </WrapPanel>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding DetailsText}" Style="{StaticResource Muted}" />
+                                    <TextBlock Text="{Binding UpscalerText}" Style="{StaticResource Muted}" />
+                                    <TextBlock Text="{Binding AntiCheatText}" Foreground="{StaticResource ErrorBrush}" FontWeight="SemiBold"
+                                               Visibility="{Binding AntiCheatText, Converter={StaticResource NullToCollapsed}}" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- Profil -->
+                            <Border Style="{StaticResource Card}" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <StackPanel>
+                                    <TextBlock Text="OPTIMIERUNGSZIEL" Style="{StaticResource SectionTitle}" />
+                                    <WrapPanel>
+                                        <ComboBox ItemsSource="{Binding Profiles}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Profile}" Margin="0,0,12,0" MinWidth="220" />
+                                        <TextBlock Text="Ziel-FPS (0 = Standard)" VerticalAlignment="Center" Margin="0,0,6,0" Style="{StaticResource Muted}" />
+                                        <TextBox Text="{Binding TargetFps}" Width="60" Margin="0,0,16,0" />
+                                        <CheckBox Content="Experimentelle Routen" IsChecked="{Binding AllowExperimental}" />
+                                        <CheckBox Content="Frame Generation" IsChecked="{Binding AllowFrameGeneration}" />
+                                        <CheckBox Content="Anti-Cheat ignorieren (nur offline!)" IsChecked="{Binding IgnoreAntiCheat}" Foreground="{StaticResource WarningBrush}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Gesperrt -->
+                            <Border Style="{StaticResource Card}" BorderBrush="{StaticResource ErrorBrush}"
+                                    Visibility="{Binding BlockedReason, Converter={StaticResource NullToCollapsed}}">
+                                <StackPanel>
+                                    <TextBlock Text="GESPERRT" Style="{StaticResource SectionTitle}" Foreground="{StaticResource ErrorBrush}" />
+                                    <TextBlock Text="{Binding BlockedReason}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Empfehlung / gewählte Konfiguration -->
+                            <Border Style="{StaticResource Card}" BorderBrush="{StaticResource AccentBrush}"
+                                    Visibility="{Binding SelectedCandidate, Converter={StaticResource NullToCollapsed}}">
+                                <StackPanel DataContext="{Binding SelectedCandidate}">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding FpsText}" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right" />
+                                            <TextBlock Text="{Binding CostText}" Style="{StaticResource Muted}" HorizontalAlignment="Right" />
+                                            <TextBlock HorizontalAlignment="Right" Style="{StaticResource Muted}">
+                                                <Run Text="Qualität" /> <Run Text="{Binding QualityText, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="EMPFEHLUNG" Style="{StaticResource SectionTitle}" Foreground="{StaticResource AccentBrush}"
+                                                       Visibility="{Binding IsBest, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="GEWÄHLTE ALTERNATIVE" Style="{StaticResource SectionTitle}"
+                                                       Visibility="{Binding IsBest, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                            <TextBlock Text="{Binding RouteName}" FontSize="17" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Candidate.Route.Description}" Style="{StaticResource Muted}" Margin="0,2,0,8" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <UniformGrid Columns="4" Margin="0,4,0,8">
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="Grafik-API" Style="{StaticResource Muted}" FontSize="11" />
+                                            <TextBlock Text="{Binding ApiText}" />
+                                        </StackPanel>
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="Super Resolution" Style="{StaticResource Muted}" FontSize="11" />
+                                            <TextBlock Text="{Binding SrText}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="DLSS-5-Modell" Style="{StaticResource Muted}" FontSize="11" />
+                                            <TextBlock Text="{Binding NrText}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="Frame Generation" Style="{StaticResource Muted}" FontSize="11" />
+                                            <TextBlock Text="{Binding FgText}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </UniformGrid>
+                                    <TextBlock Text="{Binding Reasons}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                    <TextBlock Text="{Binding Warnings}" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}"
+                                               Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVisibility}}" />
+                                    <TextBlock Margin="0,6,0,0" Style="{StaticResource Muted}">
+                                        <Run Text="Status:" /> <Run Text="{Binding StatusText, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Hinweise -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ApiSwitchText}" TextWrapping="Wrap" Foreground="{StaticResource InfoBrush}" FontWeight="SemiBold" Margin="0,0,0,6"
+                                               Visibility="{Binding ApiSwitchText, Converter={StaticResource NullToCollapsed}}" />
+                                    <TextBlock Style="{StaticResource Muted}">
+                                        <Run Text="{Binding BaselineText, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding TargetText, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <ItemsControl ItemsSource="{Binding Notes}" Margin="0,6,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" Style="{StaticResource Muted}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding InstalledText}" Foreground="{StaticResource InfoBrush}" Margin="0,6,0,0"
+                                               Visibility="{Binding InstalledText, Converter={StaticResource NullToCollapsed}}" />
+                                    <ItemsControl ItemsSource="{Binding IntegrityProblems}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StringFormat='⚠ {0}'}" Foreground="{StaticResource WarningBrush}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Aktionen -->
+                            <WrapPanel Margin="0,0,0,8" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <Button Content="DLSS 5 installieren" Command="{Binding InstallCommand}" Style="{StaticResource PrimaryButton}" />
+                                <Button Content="Rückgängig" Command="{Binding UninstallCommand}" />
+                                <Button Content="Reparieren" Command="{Binding RepairCommand}" ToolTip="Nach einem Spiel-Update erneut installieren" />
+                                <Button Content="Spiel starten" Command="{Binding LaunchGameCommand}" />
+                                <Button Content="Messen" Command="{Binding MeasureCommand}"
+                                        ToolTip="Misst das laufende Spiel: tatsächliche API (geladene DLLs) und Bildrate (PresentMon). Erst ohne, dann mit DLSS 5 messen." />
+                                <TextBlock Text="DLSS-Modus im Spiel:" VerticalAlignment="Center" Margin="8,0,6,8" Style="{StaticResource Muted}" />
+                                <ComboBox ItemsSource="{Binding SrModes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding MeasuredSrMode}" Margin="0,0,8,8" />
+                                <TextBlock Text="Dauer (s):" VerticalAlignment="Center" Margin="0,0,6,8" Style="{StaticResource Muted}" />
+                                <TextBox Text="{Binding MeasureSeconds}" Width="44" Margin="0,0,0,8" />
+                            </WrapPanel>
+
+                            <!-- Alle Konfigurationen -->
+                            <Border Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="ALLE BEWERTETEN KONFIGURATIONEN (auswählen, um sie zu installieren)" Style="{StaticResource SectionTitle}" />
+                                    <DataGrid ItemsSource="{Binding Candidates}" SelectedItem="{Binding SelectedCandidate}" MaxHeight="280">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Route" Binding="{Binding RouteName}" Width="2*" />
+                                            <DataGridTextColumn Header="API" Binding="{Binding ApiText}" Width="*" />
+                                            <DataGridTextColumn Header="Upscaling" Binding="{Binding SrText}" Width="1.4*" />
+                                            <DataGridTextColumn Header="DLSS 5" Binding="{Binding NrText}" Width="1.4*" />
+                                            <DataGridTextColumn Header="Frame Gen" Binding="{Binding FgText}" Width="1.4*" />
+                                            <DataGridTextColumn Header="Bildrate" Binding="{Binding FpsText}" Width="1.3*" />
+                                            <DataGridTextColumn Header="Qualität" Binding="{Binding QualityText}" Width="0.7*" />
+                                            <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="1.4*" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                    <TextBlock Text="* geschätzt – mit „Messen“ werden die Werte für dieses Spiel kalibriert." Style="{StaticResource Muted}" FontSize="11" Margin="0,6,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Erkennung im Detail -->
+                            <Expander Header="Erkennung im Detail">
+                                <StackPanel Margin="0,8,0,0">
+                                    <ItemsControl ItemsSource="{Binding Evidence}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StringFormat='• {0}'}" Style="{StaticResource Muted}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <ItemsControl ItemsSource="{Binding Warnings}" Margin="0,6,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StringFormat='⚠ {0}'}" Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- ================================================================ Komponenten -->
+            <TabItem Header="Komponenten">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16,12">
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource Muted}" Margin="0,0,0,12"
+                                   Text="Nichts davon wird mit dem Tool ausgeliefert. Open-Source-Teile lädt das Tool bei Bedarf direkt aus der Originalquelle (mit SHA-256-Prüfung, wo angeboten). Closed-Source-Add-ons kommen aus der Community und sind nicht überprüfbar – Deep Fried Chicken darf laut Autor nicht weiterverbreitet werden und muss importiert werden." />
+                        <ItemsControl ItemsSource="{Binding Components}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ComponentItemViewModel}">
+                                    <Border Style="{StaticResource Card}">
+                                        <DockPanel>
+                                            <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
+                                                <Button Content="Laden / Aktualisieren"
+                                                        Command="{Binding DataContext.DownloadComponentCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
+                                                        Visibility="{Binding CanDownload, Converter={StaticResource BoolToVisibility}}" />
+                                                <Button Content="Importieren …"
+                                                        Command="{Binding DataContext.ImportComponentCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="Entfernen"
+                                                        Command="{Binding DataContext.RemoveComponentCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                                                <Button Content="Webseite"
+                                                        Command="{Binding DataContext.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Homepage}"
+                                                        Visibility="{Binding Homepage, Converter={StaticResource NullToCollapsed}}" />
+                                            </WrapPanel>
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" />
+                                                    <Border BorderBrush="{StaticResource WarningBrush}" BorderThickness="1" CornerRadius="8" Padding="6,0" Margin="8,0,0,0"
+                                                            Visibility="{Binding ClosedSource, Converter={StaticResource BoolToVisibility}}">
+                                                        <TextBlock Text="Closed Source" FontSize="11" Foreground="{StaticResource WarningBrush}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Description}" Style="{StaticResource Muted}" Margin="0,2,0,4" />
+                                                <TextBlock Style="{StaticResource Muted}" FontSize="11">
+                                                    <Run Text="Lizenz:" /> <Run Text="{Binding License, Mode=OneWay}" /> <Run Text=" · Quelle:" /> <Run Text="{Binding SourceText, Mode=OneWay}" />
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Status}" Margin="0,4,0,0" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ================================================================ System -->
+            <TabItem Header="System">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16,12" MaxWidth="900" HorizontalAlignment="Left">
+                        <Border Style="{StaticResource Card}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="260" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="Grafikkarte" Style="{StaticResource Muted}" Margin="0,4" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding GpuText}" Margin="0,4" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="1" Text="NVIDIA-Treiber" Style="{StaticResource Muted}" Margin="0,4" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DriverText}" Margin="0,4" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="2" Text="Monitor" Style="{StaticResource Muted}" Margin="0,4" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DisplayText}" Margin="0,4" />
+                                <TextBlock Grid.Row="3" Text="DLSS-5-Modell (nvngx_dlssnr.dll)" Style="{StaticResource Muted}" Margin="0,4" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ModelText}" Margin="0,4" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="4" Text="Hardwarebeschl. GPU-Planung" Style="{StaticResource Muted}" Margin="0,4" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding HagsText}" Margin="0,4" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="5" Text="Optimierungen Fenstermodus" Style="{StaticResource Muted}" Margin="0,4" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding WindowedText}" Margin="0,4" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="6" Text="Windows-Spielmodus" Style="{StaticResource Muted}" Margin="0,4" />
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding GameModeText}" Margin="0,4" />
+                                <TextBlock Grid.Row="7" Text="ReShade-Vulkan-Layer" Style="{StaticResource Muted}" Margin="0,4" />
+                                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding VulkanLayerText}" Margin="0,4" TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+                        <WrapPanel>
+                            <Button Content="Neu einlesen" Command="{Binding RefreshSystemInfoCommand}" />
+                            <Button Content="Fenstermodus-Optimierung einschalten" Command="{Binding EnableWindowedOptimizationsCommand}" />
+                            <Button Content="Vulkan-Layer entfernen" Command="{Binding RemoveVulkanLayerCommand}" />
+                            <Button Content="Datenordner öffnen" Command="{Binding OpenDataFolderCommand}" />
+                        </WrapPanel>
+                        <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="SO HOLST DU DAS MEISTE HERAUS" Style="{StaticResource SectionTitle}" />
+                                <TextBlock TextWrapping="Wrap" Style="{StaticResource Muted}"
+                                           Text="1. Spiel ohne DLSS 5 starten, in eine typische Szene gehen und „Messen“ – das ist die Basis.&#10;2. „DLSS 5 installieren“ (die Empfehlung passt sich an die Messung an).&#10;3. Erneut „Messen“ – danach rechnet das Tool mit den echten DLSS-5-Kosten deiner Karte in diesem Spiel.&#10;4. Größte Hebel: DLSS 5 vor dem Hochskalieren (etwa halbe Kosten) und Modellauflösung 75 % (kaum sichtbarer Unterschied).&#10;5. Frame Generation nur mit mindestens ~55–60 echten fps und immer mit Reflex." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Protokoll -->
+        <Border Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,8">
+            <ListBox ItemsSource="{Binding LogLines}" FontFamily="Cascadia Mono, Consolas" FontSize="11">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Style="{StaticResource Muted}" TextWrapping="NoWrap" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <!-- Beschäftigt -->
+        <Border Grid.RowSpan="3" Background="#B30F1115" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
+            <Border Style="{StaticResource Card}" Width="440" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="{Binding BusyText}" FontSize="15" TextWrapping="Wrap" Margin="0,0,0,10" />
+                    <ProgressBar Value="{Binding Progress}" Height="6" Foreground="{StaticResource AccentBrush}" Background="{StaticResource PanelBrush}" BorderThickness="0" />
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</Window>

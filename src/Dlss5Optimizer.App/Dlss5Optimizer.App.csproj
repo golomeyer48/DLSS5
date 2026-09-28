@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- WPF lässt System.IO aus den impliziten Usings weg (Konflikt mit Shapes.Path); hier wird Shapes nicht benutzt. -->
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Dlss5Optimizer.Core\Dlss5Optimizer.Core.csproj" />
   </ItemGroup>
 
