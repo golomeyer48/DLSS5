@@ -30,6 +30,8 @@ public sealed class GameAnalyzer(GameDatabase db)
     [
         ("d3d12.dll", GraphicsApi.D3D12, 0.45),
         ("D3D12RHI", GraphicsApi.D3D12, 0.5),
+        // Streamline-Spiele (Alan Wake 2) importieren nur sl.interposer.dll und holen D3D12CreateDevice per Name.
+        ("D3D12CreateDevice", GraphicsApi.D3D12, 0.45),
         ("d3d11.dll", GraphicsApi.D3D11, 0.35),
         ("D3D11RHI", GraphicsApi.D3D11, 0.5),
         ("vulkan-1.dll", GraphicsApi.Vulkan, 0.45),

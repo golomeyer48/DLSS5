@@ -13,6 +13,9 @@ public sealed record ApiExeVariant(GraphicsApi Api, string Exe);
 /// </summary>
 public sealed record UserIniTweak(string File, string Section, string Key, string Value, string Reason);
 
+/// <summary>Startparameter-Datei (relativ zur EXE) und die Schalter, die hinein müssen.</summary>
+public sealed record CommandLineSpec(string File, string[] Args, string Reason);
+
 /// <summary>
 /// Wissen über einzelne Spiele, das sich nicht zuverlässig aus Dateien ablesen lässt.
 /// Wird als JSON ausgeliefert und kann ohne neuen Build aktualisiert werden.
@@ -53,6 +56,12 @@ public sealed record GameDbEntry
     /// gestartet, wenn das Spiel ohne Steam laufen muss, und beim Messen gesucht.
     /// </summary>
     public string? DirectExe { get; init; }
+
+    /// <summary>
+    /// Startparameter-Datei des Spiels (GTA IV: commandline.txt neben der EXE). Platzhalter {width}, {height} und
+    /// {refresh} werden durch den Bildschirm ersetzt; eine vorhandene Datei wird zusammengeführt.
+    /// </summary>
+    public CommandLineSpec? CommandLine { get; init; }
 
     /// <summary>
     /// Weitere Ordner (relativ zur EXE), in die der Übersetzer zusätzlich muss – Source-Spiele laden

@@ -25,6 +25,31 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
     /// <summary>Vom Tiefenpuffer-Assistenten gewählte Einstellung je Spiel – bleibt bei „Reparieren“ erhalten.</summary>
     public Func<GameAnalysis, DepthVariant?>? DepthOverride { get; init; }
 
+    /// <summary>Gewählte DLSS-5-Stärke (Einstellung im Tool) – wird bei jeder Installation und Reparatur geschrieben.</summary>
+    public Func<NrStrength>? Strength { get; init; }
+
+    /// <summary>Bildschirm für Startparameter wie -width/-height (commandline.txt von GTA IV).</summary>
+    public Func<DisplayInfo?>? Display { get; init; }
+
+    /// <summary>
+    /// RenoDX-Regler je Stärke. „Kräftig“ ist der Satz aus dlss5-classic-games ohne NRStyle=2 (schwarzes Bild bei
+    /// 32-Bit-Spielen); bei GTA IV vom Nutzer bestätigt, ohne messbaren Leistungsverlust (28.09.2026).
+    /// NRUICorrection=1 schützt das HUD in beiden Stufen.
+    /// </summary>
+    internal static IReadOnlyList<(string Key, string Value)> RenoDxStrength(NrStrength strength) => strength switch
+    {
+        NrStrength.Strong =>
+        [
+            ("NRPreset", "3"), ("NRIntensity", "2"), ("NRGlobalTone", "2"), ("NRLocalTone", "2"),
+            ("NRLocalStructure", "2"), ("NRSkinStructure", "1"), ("NRUICorrection", "1"),
+        ],
+        _ =>
+        [
+            ("NRPreset", "0"), ("NRIntensity", "1"), ("NRGlobalTone", "1"), ("NRLocalTone", "1"),
+            ("NRLocalStructure", "1"), ("NRSkinStructure", "-1"), ("NRUICorrection", "1"),
+        ],
+    };
+
     public InstallPlan Plan(GameAnalysis game, Candidate candidate)
     {
         var gameDir = game.GameDir ?? throw new PlanException("Spiel-EXE unbekannt.", []);
@@ -51,10 +76,26 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
                 break;
         }
 
+        if (candidate.Route.Id != RouteId.NativeDlss5)
+            WriteCommandLine(ctx);
         AddSettingHints(ctx);
         if (ctx.Missing.Count > 0)
             throw new PlanException($"Es fehlen Komponenten: {string.Join(", ", ctx.Missing.Distinct())}", ctx.Missing.Distinct().ToList());
         return new InstallPlan(candidate.Config, gameDir, ctx.Steps, ctx.Hints, ctx.Cleanup);
+    }
+
+    /// <summary>
+    /// Startparameter aus der Spiel-Datenbank (GTA IV: 4K und Speicherbremse aus – mit DXVK bietet das Spiel sonst
+    /// kein 4K an). Eine vorhandene Datei wird zusammengeführt; „Rückgängig“ stellt sie aus der Sicherung wieder her.
+    /// </summary>
+    private void WriteCommandLine(Context c)
+    {
+        if (c.Game.DbEntry?.CommandLine is not { } spec)
+            return;
+        var args = CommandLineFile.Resolve(spec.Args, Display?.Invoke());
+        var path = Path.Combine(c.GameDir, spec.File);
+        var existing = File.Exists(path) ? File.ReadAllText(path) : null;
+        c.Steps.Add(new WriteTextStep(spec.File, CommandLineFile.Merge(existing, args), $"{spec.File}: {string.Join(" ", args)} ({spec.Reason})"));
     }
 
     private static void PlanNative(Context c)
@@ -138,7 +179,8 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         // Über DXVK wird aus DX9 Vulkan: ReShade kommt dann als Vulkan-Layer, nicht als DLL im Spielordner.
         bool viaLayer = c.Config.Api == GraphicsApi.Vulkan || route.UsesDxvk();
         // Deep Fried Chicken ist auf 32-Bit-Vulkan ungetestet – dort nur RenoDX (so auch in allen Referenzen).
-        var consumer = route.UsesDxvk() || viaLayer && is32 ? Ids.RenoDx : ChooseConsumer();
+        // Eine reduzierte Modellauflösung setzt RenoDX (NRResolutionScale) – für Deep Fried Chicken ist keine bekannt.
+        var consumer = route.UsesDxvk() || viaLayer && is32 || c.Config.NrScale < 1.0 ? Ids.RenoDx : ChooseConsumer();
 
         if (route == RouteId.LegacyFeeder)
             PlanDgVoodoo(c, is32);
@@ -276,11 +318,9 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         };
         foreach (var (key, value) in c.Game.DbEntry?.FeedConfig ?? [])
             values[key] = value;
-        if (c.Config.NrScale < 1.0 && c.Config.Api == GraphicsApi.D3D11)
-        {
-            values["work_resolution"] = ((int)Math.Round(c.Config.NrScale * 100)).ToString(CultureInfo.InvariantCulture);
-            values["work_upscale"] = "1";
-        }
+        // Die Modellauflösung setzt RenoDX (NRResolutionScale) – laut Feeder-Handbuch schärfer als work_resolution,
+        // das das ganze Bild verkleinert. 100 % hier festschreiben, damit eine ältere Installation nicht weiter schrumpft.
+        values["work_resolution"] = "100";
         foreach (var (key, value) in values)
             c.Ini("dlss5-feed.cfg", "", key, value, $"{key}={value}");
     }
@@ -369,8 +409,41 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         c.Hints.Add("Der ReShade-Vulkan-Layer greift nur in Spielen mit ReShade.ini neben der EXE.");
     }
 
+    /// <summary>Add-ons, die dieses Tool selbst installiert – alle anderen im Spielordner lädt ReShade ungefragt mit.</summary>
+    private static readonly HashSet<string> OwnAddons = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "dlss5-feed.addon32", "dlss5-feed.addon64", "renodx-dlss5.addon64", "deep-fried-chicken.addon64", "dlss5-bridge.addon64",
+    };
+
+    /// <summary>
+    /// Fremde ReShade-Add-ons beiseitelegen: ReShade lädt jedes *.addon* neben der EXE. In Arkham Asylum lag ein
+    /// AutoHDR.addon32 aus einem früheren Versuch und brachte das Spiel beim Start zum Absturz (28.09.2026).
+    /// Gesichert wie jede ersetzte Datei – „Rückgängig“ legt sie zurück.
+    /// </summary>
+    private static void SetAsideForeignAddons(Context c)
+    {
+        IEnumerable<string> found;
+        try
+        {
+            found = Directory.EnumerateFiles(c.GameDir, "*.addon*")
+                .Select(Path.GetFileName).OfType<string>()
+                .Where(n => Path.GetExtension(n).ToLowerInvariant() is ".addon" or ".addon32" or ".addon64" && !OwnAddons.Contains(n))
+                .ToList();
+        }
+        catch (IOException)
+        {
+            return;
+        }
+        foreach (var name in found)
+        {
+            c.Steps.Add(new RemoveFileStep(name, $"Fremdes ReShade-Add-on {name} beiseitelegen (ReShade würde es mitladen)"));
+            c.Hints.Add($"{name} lag im Spielordner und wurde beiseitegelegt – fremde Add-ons können das Spiel mit ReShade abstürzen lassen. „Rückgängig“ legt es zurück.");
+        }
+    }
+
     private static void ReShadeIni(Context c)
     {
+        SetAsideForeignAddons(c);
         c.Ini("ReShade.ini", "ADDON", "AddonPath", @".\", "Add-ons neben der EXE laden");
         c.Ini("ReShade.ini", "GENERAL", "EffectSearchPaths", @".\reshade-shaders\Shaders\**", "Shader-Pfad");
         c.Ini("ReShade.ini", "GENERAL", "TextureSearchPaths", @".\reshade-shaders\Textures\**", "Textur-Pfad");
@@ -393,6 +466,11 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
             var ini = Path.Combine(dir, "ReShade.ini");
             c.Ini(ini, "RenoDX.DLSS5", "NeuralUplift", "1", "Neural Rendering an");
             c.Ini(ini, "RenoDX.DLSS5", "NREnableUpscaling", "0", "Upscaling bleibt beim Spiel");
+            // Street Fighter IV (4K): 20–23 ms bei 1, 6,3 ms bei 0.5 – immer schreiben, damit „Reparieren“ den Wert angleicht.
+            c.Ini(ini, "RenoDX.DLSS5", "NRResolutionScale", Num(c.Config.NrScale), $"DLSS-5-Modell auf {c.Config.NrScale:P0} Auflösung");
+            var strength = Strength?.Invoke() ?? NrStrength.Standard;
+            foreach (var (key, value) in RenoDxStrength(strength))
+                c.Ini(ini, "RenoDX.DLSS5", key, value, $"DLSS-5-Stärke {(strength == NrStrength.Strong ? "kräftig" : "Standard")}: {key}={value}");
             if (hostProcess)
             {
                 // Werte der getesteten 32-Bit-Aufbauten: nur NGX-Hooks, NRStyle=0 (NRStyle=2 ergibt ein schwarzes Bild).

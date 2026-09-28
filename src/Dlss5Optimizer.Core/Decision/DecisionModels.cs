@@ -74,12 +74,22 @@ public enum OptimizationProfile
     TargetFps,
 }
 
+/// <summary>Wie kräftig RenoDX das Neural-Rendering-Ergebnis einmischt – kostet keine Leistung.</summary>
+public enum NrStrength
+{
+    /// <summary>Grundwerte von RenoDX.</summary>
+    Standard,
+    /// <summary>Satz aus dlss5-classic-games (dort in 22 Spielen genutzt); bei GTA IV vom Nutzer bestätigt.</summary>
+    Strong,
+}
+
 public sealed record UserPreferences(
     OptimizationProfile Profile = OptimizationProfile.Balanced,
     int? TargetFps = null,
     bool AllowExperimental = true,
     bool AllowFrameGeneration = true,
-    bool IgnoreAntiCheat = false)
+    bool IgnoreAntiCheat = false,
+    NrStrength Strength = NrStrength.Standard)
 {
     public int EffectiveTargetFps(DisplayInfo display) => Profile switch
     {
@@ -116,7 +126,8 @@ public sealed record RouteDefinition(
     GraphicsApi ModelScaleApis = GraphicsApi.None,
     GraphicsApi SmoothMotionIncompatibleApis = GraphicsApi.None,
     bool Official = false,
-    IReadOnlyDictionary<GraphicsApi, double>? ApiOverheadMs = null);
+    IReadOnlyDictionary<GraphicsApi, double>? ApiOverheadMs = null,
+    double NrCostFactor = 1.0);
 
 /// <summary>Eine konkrete, bewertbare Einstellung: Route + API + Parameter.</summary>
 public sealed record Configuration(

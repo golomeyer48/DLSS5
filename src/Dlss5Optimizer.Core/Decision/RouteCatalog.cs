@@ -32,6 +32,15 @@ public static class RouteCatalog
 
     private static readonly ComponentRequirement NrModel = ComponentRequirement.One(Ids.DlssNrModel, "DLSS-5-Modell (nvngx_dlssnr.dll)");
 
+    /// <summary>
+    /// Feeder-Wege sind pro Megapixel ≈ 2,7× teurer als der OptiScaler-Weg: eigene DLAA-Auswertung, Kopien in ein
+    /// privates D3D12-Gerät bzw. den 64-Bit-Hilfsprozess (gemessen, siehe <see cref="FrameTimeModel"/>).
+    /// </summary>
+    private const double FeederCostFactor = 2.7;
+
+    /// <summary>Die Modellauflösung setzt RenoDX (NRResolutionScale); unter DX11 kann auch der Feeder verkleinern.</summary>
+    private const GraphicsApi FeederApis = GraphicsApi.D3D12 | GraphicsApi.D3D11 | GraphicsApi.D3D10 | GraphicsApi.Vulkan | GraphicsApi.OpenGL;
+
     public static IReadOnlyList<RouteDefinition> All { get; } =
     [
         new(RouteId.NativeDlss5, "Natives DLSS 5",
@@ -82,7 +91,7 @@ public static class RouteCatalog
 
         new(RouteId.Feeder, "DLSS5-Feeder (Spiele ohne DLSS)",
             "Baut aus ReShade-Tiefe und geschätzten Bewegungsvektoren eine DLAA-Eingabe und führt DLSS 5 in einem privaten D3D12-Gerät aus.",
-            Apis: GraphicsApi.D3D12 | GraphicsApi.D3D11 | GraphicsApi.D3D10 | GraphicsApi.Vulkan | GraphicsApi.OpenGL,
+            Apis: FeederApis,
             Requires64Bit: false, RequiresGameDlss: false, AcceptsFsrOrXess: false,
             MotionVectors: MotionVectorSource.Estimated, OverheadMs: 1.2, SupportsSuperResolution: false,
             Components:
@@ -101,9 +110,10 @@ public static class RouteCatalog
                 "Das HUD wird mitbearbeitet.",
                 "OpenGL: LumeniteFX lieferte in Referenztests keine Bewegungsvektoren – die Diagnose zeigt das („MV probe 0 %“).",
             ],
-            ModelScaleComponent: Ids.Feeder,
-            ModelScaleApis: GraphicsApi.D3D11,
-            SmoothMotionIncompatibleApis: GraphicsApi.Vulkan),
+            ModelScaleComponent: Ids.RenoDx,
+            ModelScaleApis: FeederApis,
+            SmoothMotionIncompatibleApis: GraphicsApi.Vulkan,
+            NrCostFactor: FeederCostFactor),
 
         new(RouteId.LegacyFeeder, "dgVoodoo2 + DLSS5-Feeder (DirectX 9 und älter)",
             "dgVoodoo2 übersetzt DirectX 8/9/DirectDraw nach DirectX 11, danach übernimmt der Feeder.",
@@ -122,7 +132,10 @@ public static class RouteCatalog
                 NrModel,
             ],
             Caveats: ["Alte Spiele laufen oft mit fester Bildrate – DLSS 5 kostet dann nur Leistungsreserve.", "dgVoodoo scheitert in manchen Engines (z. B. Gamebryo: Fallout 3/New Vegas) – dort die DXVK-Route nehmen."],
-            Experimental: true),
+            Experimental: true,
+            ModelScaleComponent: Ids.RenoDx,
+            ModelScaleApis: GraphicsApi.D3D9 | GraphicsApi.D3D8 | GraphicsApi.DirectDraw,
+            NrCostFactor: FeederCostFactor),
 
         new(RouteId.LegacyDxvkFeeder, "DXVK + DLSS5-Feeder (DirectX 9)",
             "DXVK übersetzt DirectX 9 nach Vulkan, ReShade läuft als Vulkan-Layer, der Feeder schickt Bild und Tiefe an einen 64-Bit-Hilfsprozess mit DLSS 5.",
@@ -146,7 +159,10 @@ public static class RouteCatalog
                 "Geschätzte Bewegungsvektoren: Schlieren bei schneller Bewegung möglich; das HUD wird mitbearbeitet.",
                 "ReShade wird als Vulkan-Layer registriert – aktiv nur in Spielen mit ReShade.ini neben der EXE.",
             ],
-            SmoothMotionIncompatibleApis: GraphicsApi.D3D9),
+            SmoothMotionIncompatibleApis: GraphicsApi.D3D9,
+            ModelScaleComponent: Ids.RenoDx,
+            ModelScaleApis: GraphicsApi.D3D9,
+            NrCostFactor: FeederCostFactor),
 
         new(RouteId.LegacyD3D8Dxvk, "d3d8to9 + DXVK + DLSS5-Feeder (DirectX 8)",
             "d3d8to9 macht aus DirectX 8 ein DirectX 9, DXVK daraus Vulkan – danach wie bei DirectX-9-Spielen über den Feeder und den 64-Bit-Hilfsprozess.",
@@ -170,7 +186,10 @@ public static class RouteCatalog
                 "Geschätzte Bewegungsvektoren: Schlieren bei schneller Bewegung möglich; das HUD wird mitbearbeitet.",
                 "d3d8to9 braucht die alte DirectX-Laufzeit (D3DX9) – fehlt sie, startet das Spiel nicht.",
             ],
-            SmoothMotionIncompatibleApis: GraphicsApi.D3D8),
+            SmoothMotionIncompatibleApis: GraphicsApi.D3D8,
+            ModelScaleComponent: Ids.RenoDx,
+            ModelScaleApis: GraphicsApi.D3D8,
+            NrCostFactor: FeederCostFactor),
     ];
 
     /// <summary>

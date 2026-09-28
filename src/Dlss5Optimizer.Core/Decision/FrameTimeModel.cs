@@ -10,6 +10,9 @@ namespace Dlss5Optimizer.Core.Decision;
 ///   RTX 5090, 4K, NBA 2K27 (nativ): 128 → 63 fps  ⇒ 7,8 ms + 8,3 ms = 16,1 ms  ✔
 ///   RTX 5070 Ti, 4K, Mod (OptiScaler): 180 → 80 fps ⇒ ≈ 6,9 ms Aufschlag ⇒ ≈ 0,83 ms/MP
 ///   RTX 5070 Ti, 4K, Pre-Upscale-Fork (Performance, 1080p intern): 122 fps  ⇒ ≈ 2,6 ms
+///   RTX 5070 Ti, 4K, Feeder + RenoDX im 64-Bit-Hilfsprozess (Messungen beim Nutzer, 28.09.2026):
+///     Fallout 3 / New Vegas 17,2–17,4 ms, Street Fighter IV 20–23 ms bei 100 %, 6,3 ms bei 50 %
+///     ⇒ ≈ 2,2–2,4 ms/MP (DLAA + Neural Pass + Kopien) – daher <see cref="RouteDefinition.NrCostFactor"/> ≈ 2,7.
 /// Die Kosten hängen stark vom Spiel und vom Weg (nativ/Mod) ab, deshalb wird nach dem ersten
 /// Benchmark mit gemessenen Werten gerechnet (<see cref="Calibration"/>).
 /// </summary>
@@ -72,7 +75,7 @@ public sealed class FrameTimeModel
     {
         if (_calibration?.NrMsPerMegapixel is { } measured)
             return measured;
-        double perMp = ReferenceMsPerMegapixel * ReferenceTops / Math.Max(_system.Gpu.TensorTops, 100);
+        double perMp = ReferenceMsPerMegapixel * ReferenceTops / Math.Max(_system.Gpu.TensorTops, 100) * route.NrCostFactor;
         return route.Official ? perMp * NativeCostFactor : perMp;
     }
 

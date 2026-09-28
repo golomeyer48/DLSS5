@@ -1,99 +1,140 @@
 # DLSS5 Optimizer – Hinweise für Claude Code
 
 Windows-Tool (WPF, .NET 10), das DLSS 5 (Neural Rendering) in Spiele bringt und pro Spiel die beste
-Einbindung wählt. Nutzer: RTX 5070 Ti, Treiber 617.14, 4K/60 Hz, spricht Deutsch – **Oberfläche,
-Kommentare, Commit-Texte und Antworten auf Deutsch**.
+Einbindung wählt. Nutzer: RTX 5070 Ti, Treiber 617.14, Hisense-TV 3840×2160 @ 60 Hz (einziger Bildschirm;
+die Radeon 890M im Prozessor hat keinen), spricht Deutsch – **Oberfläche, Kommentare, Commit-Texte und
+Antworten auf Deutsch**.
 
 ## Befehle
 
 ```powershell
 dotnet test tests\Dlss5Optimizer.Core.Tests                     # Kern-Tests (auch unter Linux)
 dotnet build DLSS5Optimizer.slnx -c Release                      # alles bauen
-.\build.bat                                                     # Tests + Single-File-EXE nach publish\
+.\build.bat                                                     # Tests + Single-File-EXE nach publish\ (endet mit pause)
+dotnet publish src\Dlss5Optimizer.App -c Release -o publish      # nur die EXE – geht nur, wenn das Tool geschlossen ist
 dotnet run --project tools\Dlss5Optimizer.SelfTest -f net10.0-windows            # echte Downloads + Installieren/Rückgängig
 dotnet run --project tools\Dlss5Optimizer.SelfTest -f net10.0 -- --synthetic      # ohne Internet
 publish\DLSS5Optimizer.exe --screenshot .\screenshots --folder D:\Games           # alle Reiter als PNG, beendet sich
 ```
 
 Die App verlangt Adminrechte (app.manifest). Daten und Log: `%LOCALAPPDATA%\DLSS5Optimizer`
-(`dlss5optimizer.log`, `settings.json`, `components\`).
+(`dlss5optimizer.log`, `settings.json`, `components\`, `patcher-reste\`).
 
 ## Aufbau
 
 - `src/Dlss5Optimizer.Core` – plattformunabhängig, voll getestet: Erkennung (PE-Parser, API-Bewertung,
   Spiel-Datenbank `Data/games.json`), Entscheidung (`RouteCatalog`, `DecisionEngine`, `FrameTimeModel`),
   Komponenten (`Data/components.json`, Speicher mit SHA-256, GitHub-Downloader), Installation
-  (`RoutePlanner` → Schritte, `Installer` mit Sicherung/Rollback, `InstallDiagnostics`, `DiagnosticBundle`).
-- `src/Dlss5Optimizer.Windows` – Windows ohne Oberfläche: Registry, Vulkan-Layer, Ereignisprotokoll, Module.
+  (`RoutePlanner` → Schritte, `Installer` mit Sicherung/Rollback, `InstallDiagnostics`, `MiniDump`,
+  `LaunchChooser`, `CommandLineFile`, `DiagnosticBundle`).
+- `src/Dlss5Optimizer.Windows` – Windows ohne Oberfläche: Registry, Vulkan-Layer, Ereignisprotokoll, Module, Spielstart.
 - `src/Dlss5Optimizer.App` – WPF/MVVM (CommunityToolkit.Mvvm). Farben/Stile in `App.xaml`.
-- `tools/Dlss5Optimizer.SelfTest` – läuft in der CI auf windows-latest (siehe `.github/workflows/build.yml`).
+- `tools/Dlss5Optimizer.SelfTest` – läuft in der CI auf windows-latest (siehe `.github/workflows/build.yml`),
+  lädt dort auch das Modell samt Prüfsumme.
 
 ## Regeln
 
 - **Keine fremden Binärdateien ins Repository.** Komponenten lädt das Tool beim Nutzer aus der
-  Originalquelle; Closed-Source-Teile nur per Import oder nach ausdrücklicher Warnung.
+  Originalquelle; Closed-Source-Teile nur per Import oder nach ausdrücklicher Warnung. `DLSS5Patcher/` und
+  `DLSS5-Diagnose-*.zip` sind per .gitignore ausgeschlossen – nie einchecken.
 - **DLSS-5-Modell:** `nvngx_dlssnr.dll` liegt weder im Treiber noch im öffentlichen SDK. Angenommen wird nur
-  NVIDIAs signierte Fassung 310.8.0 (SHA-256 in `components.json` → `pinnedSha256`); veränderte Builds
-  (Lecram, SF, RTX40) werden abgelehnt. Das Tool lädt sie selbst aus `RankFTW/rhi-repo`, Release `dlssnr-310.8.0`
-  (Entscheidung des Nutzers, 28.09.2026); Import geht weiterhin.
+  NVIDIAs signierte Fassung 310.8.0 (SHA-256 e16bcf15… in `components.json` → `pinnedSha256`). Das Tool lädt sie
+  aus `RankFTW/rhi-repo`, Release `dlssnr-310.8.0` (festes `source.tag`; Entscheidung des Nutzers). Alle anderen
+  `dlssnr-*`-Releases dort (Lecram, SF, SF-v2, RTX40) und die Datei des „DLSS 5 Patchers“ (8270b350…,
+  `knownModifiedSha256`) sind veränderte Builds und werden abgelehnt.
 - Jede Route außer „nativ“ muss das Modell als Voraussetzung führen (Test `EveryDlss5RouteNeedsTheModel`).
 - Neue Logik im Kern mit xUnit-Test; Windows-Teile im Selbsttest abdecken.
 - Oberfläche: Kontrast mindestens 4,5:1. Keine globale TextBlock-Farbe – Schrift erbt vom Steuerelement.
   `MainWindow` nutzt den Stil `AppWindow` per Schlüssel (implizite Stile greifen nur beim exakten Typ).
+- **Commit und Push nur nach ausdrücklichem Ja des Nutzers** (einmal ohne Frage gepusht – das soll nicht wieder
+  passieren). Git hat keinen globalen Autor: wie bisher `git -c user.name=Claude -c user.email=noreply@anthropic.com
+  commit -F <datei>` (Nachricht als Datei – PowerShell reicht Here-Strings nicht per stdin durch). Push nach
+  `origin` (golomeyer48/DLSS5) funktioniert, die Anmeldung ist im Credential Manager gespeichert.
 
 ## Fachliches, das schon geklärt ist
 
 - ReShade als Vulkan-Layer (DXVK-Route) lädt nur in Spielen mit `ReShade.ini` neben der EXE; abgelegt wie das
   offizielle Setup in `C:\ProgramData\ReShade`. Pro Prozess lädt nur eine ReShade-Instanz – eine Fassung ohne
   Add-on-Unterstützung wird ersetzt, fremde Layer werden auf Wunsch abgemeldet.
-- 32-Bit-Spiele: Feeder `addon32` + 64-Bit-Hilfsprozess in `host64\` (RenoDX dort mit `NRStyle=0`,
-  `EnableHooks=2`, früh geladen). `dlss5-feed.cfg`: `mode=2`, `reset_every=0`, `rebuild=0`, `warmup_rebuild=0`.
-- Ab Treiber 616.64 nur RenoDX ≥ 6.1 (neueste stabile: 6.5.3) oder Deep Fried Chicken.
-- Referenzen: `jlrouzies-fr/DLSS5-Feeder` (v. a. `tools/Install-DLSS5Feeder.ps1` und README),
-  `perseval-BLR/dlss5-classic-games` (bestätigte Klassiker), `xdzleo/dlss5-launcher`.
+- **Steam-Spiele auf Vulkan-Layer-Routen nie über Steam starten.** Steam lädt `GameOverlayRenderer.dll` und seine
+  Vulkan-Layer (`ENABLE_VK_LAYER_VALVE_*`) auch bei ausgeschaltetem Overlay; Fallout 3 stürzte so viermal beim
+  ersten Bild ab. `LaunchChooser` startet direkt (games.json `directExe`, z. B. Fallout3ng.exe); Steam darf laufen.
+- 32-Bit-Spiele: Feeder `addon32` + 64-Bit-Hilfsprozess in `host64\` (RenoDX dort mit `NRStyle=0` – 2 ergibt
+  Schwarzbild –, `EnableHooks=2`, früh geladen). `dlss5-feed.cfg`: `mode=2`, `reset_every=0`, `rebuild=0`, `warmup_rebuild=0`.
+- Ab Treiber 616.64 nur RenoDX ≥ 6.1 (neueste stabile: 6.5.3) oder Deep Fried Chicken (1.4.8-alpha, importiert).
+- **RenoDX 6.5.3 stürzt direkt in 64-Bit-OpenGL-Spielen ab** (liest ReShades OpenGL-Gerätekennung 0x20000 als
+  Zeiger; Wolfenstein: The Old Blood). Im 64-Bit-OpenGL-Weg also Deep Fried Chicken – Test läuft (siehe unten).
+- Modellauflösung: RenoDX `NRResolutionScale` in `[RenoDX.DLSS5]` wirkt (0.5 → „ws1 1920x1080 -> 3840x2160“).
+  Feeder-Wege kosten ≈ 2,2–2,4 ms/MP (4K bei 100 %: 17–23 ms) → `NrCostFactor` 2,7 in `RouteCatalog`. Deep Fried
+  Chicken kennt keine Modellauflösung – bei < 100 % nimmt der Planer immer RenoDX.
+- „DLSS-5-Stärke“ (Einstellung): „kräftig“ = NRPreset 3, NRIntensity/GlobalTone/LocalTone/LocalStructure 2,
+  NRSkinStructure 1, NRUICorrection 1 (Satz aus dlss5-classic-games ohne NRStyle=2). Kostet keine Leistung.
+- DXVK fest auf 3.0.2 (bestätigter Stand), dazu `dxvk.conf` mit `dxvk.enableDescriptorHeap = False`.
+- Streamline-Spiele (Alan Wake 2) importieren nur `sl.interposer.dll` – API-Erkennung über den String `D3D12CreateDevice`.
+- Fremde ReShade-Add-ons im Spielordner lädt ReShade mit (ein altes `AutoHDR.addon32` ließ Arkham Asylum abstürzen)
+  → `SetAsideForeignAddons` legt sie beim Installieren gesichert beiseite.
+- Viele Spielordner des Nutzers enthalten **Reste des „DLSS 5 Patchers“** (MRHRTZ, Ordner `.dlss5_backup`, oft mit
+  dem veränderten Modell, ReShade als dxgi.dll, alten RenoDX-/Feeder-Add-ons). Vor dem Installieren prüfen und nach
+  `%LOCALAPPDATA%\DLSS5Optimizer\patcher-reste\<Spiel>` **verschieben, nie löschen**. `preexisting.txt` im
+  `.dlss5_backup` nennt, was vor dem Patcher da war.
+- Referenzen: `jlrouzies-fr/DLSS5-Feeder` (README, Issues #95 Steam-Overlay, #135 New Vegas),
+  `perseval-BLR/dlss5-classic-games` (bestätigte Klassiker, Skripte unter `scripts/`), `xdzleo/dlss5-launcher`,
+  Gillian's GTA IV Guide (commandline.txt), DXVK-Issue #1831.
 
-## Stand (28.09.2026)
+## Fehlersuche – so ging es bisher am schnellsten
 
-- Erster echter Test (Fallout 3 GOTY, Treiber 617.14) scheiterte an „Es fehlen Komponenten: nvngx-dlssnr“ –
-  behoben: Das Modell ist jetzt Voraussetzung jeder Route und wird importiert (siehe oben).
-- Oberfläche war kaum lesbar (weißes Fenster, hellgraue Schrift) – behoben; die CI speichert Bildschirmfotos.
-- Ordner `DLSS5Patcher/` (MRHRTZ „DLSS 5 Patcher“ 1.2.1, nur lokal, per .gitignore ausgeschlossen) geprüft:
-  Sein `nvngx_dlssnr.dll` (SHA-256 8270b350…) ist NVIDIA-signiert, aber verändert (Authenticode: HashMismatch) –
-  wird abgelehnt und in `components.json` unter `knownModifiedSha256` mit Herkunft benannt. Brauchbar daraus:
-  Deep Fried Chicken 1.4.8-alpha (Import), `nvngx_dlss.dll` 310.8.0 (gültig signiert); der Rest kommt aus den Originalquellen. Beide sind beim Nutzer in den Komponentenspeicher importiert (28.09.2026) –
-  damit nimmt `ChooseConsumer` jetzt Deep Fried Chicken statt RenoDX 6.5.3.
-- Quelle der signierten Fassung gefunden: GitHub `RankFTW/rhi-repo`, Release `dlssnr-310.8.0`,
-  `nvngx_dlssnr_310.8.0.zip` (ZIP-SHA-256 388c0a79…; DLL = e16bcf15…, Authenticode gültig, NVIDIA). Beim Nutzer
-  importiert (28.09.2026). Die übrigen `dlssnr-*`-Releases dort (Lecram, SF, SF-v2, RTX40) sind veränderte Builds.
-  Nicht im Treiber 617.14 enthalten (DriverStore/NGXCore geprüft).
-- Zweiter Test Fallout 3 (28.09.2026, 17:05, alles installiert inkl. signiertem Modell, RenoDX 6.5.3): Absturz
-  0xC0000005 beim ersten Bild, Sprung an eine Adresse ohne Modul, oberster Aufrufer laut `dlss5-feed-crash.dmp`
-  `GameOverlayRenderer.dll` (Steam-Overlay) – wie Feeder-Issue #95; der Feeder hatte noch nichts getan.
-  Umgesetzt: `MiniDump` (liest Feeder-Abbilder), Diagnose nennt Overlay-Abstürze statt „Tiefenpuffer prüfen“,
-  DXVK-Log auch von `Fallout3ng.exe`, Installationshinweis „Steam-Overlay aus“ für Vulkan-Layer-Routen.
-- Dritter Test (17:19, Steam-Overlay aus): gleicher Absturz (EIP 0x9, kein Aufrufer im Modul) direkt nach dem Start
-  der ReShade-Laufzeit. Das Overlay war also nur Beteiligter. `GameOverlayRenderer.dll` sowie die impliziten
-  Vulkan-Layer `VK_LAYER_VALVE_steam_overlay`/`_fossilize` laden trotzdem (Steam setzt `ENABLE_VK_LAYER_VALVE_*`).
-  Abweichungen zum bestätigten Aufbau (perseval: „Fallout 3 ReBuild“ ohne Steam, DXVK 3.0.2, Feeder ≤ 0.13.1-beta.1,
-  lokale `vulkan-1.dll` x86). Umgesetzt: DXVK fest auf 3.0.2, `dxvk.conf` mit `dxvk.enableDescriptorHeap = False`.
-- Vierter Test (17:43, DXVK 3.0.2 + dxvk.conf, Feeder 0.13.1-beta.1 von Hand): gleicher Absturz (0x65470650) –
-  Feeder- und DXVK-Fassung sind es nicht.
-- **Durchbruch (17:50):** `Fallout3ng.exe` per Doppelklick (Steam läuft, startet das Spiel aber nicht) → DLSS 5 läuft:
-  RenoDX 6.5.3 „signed runtime … reference match“, „feature 18 created“, „inline feature 18 evaluation succeeded“,
-  Hilfsprozess 21 600 Bilder „evaluated“ (DLSS-GPU 17,4 ms), „copy home“ ins Backbuffer, ~48 fps in 4K nativ.
-  Ursache also: Start über Steam (GameOverlayRenderer.dll + Steams Vulkan-Layer, auch mit Overlay aus).
-  Umgesetzt: `LaunchChooser` (Steam + Vulkan-Layer-Route → Direktstart; `directExe` in games.json, Fallout 3:
-  Fallout3ng.exe; auch fürs Messen und die Diagnose), Hinweise/Diagnose-Texte „nicht über Steam starten“.
-- **Fallout 3 läuft (bestätigt 28.09.2026, 18:16–19:35):** nach „Reparieren“ mit Feeder 1.17.0, RenoDX 6.5.3,
-  DXVK 3.0.2 und „Spiel starten“ im Tool (Direktstart Fallout3ng.exe) – 223 200 Bilder in 4K mit DLSS 5, kein Absturz,
-  ~47 fps (DLSS-GPU 17,4 ms/Bild). Der Feeder bleibt also auf der neuesten Fassung.
-- **Fallout: New Vegas läuft (28.09.2026, 19:49–20:05):** vorher Patcher-Reste aus dem Spielordner nach
-  `%LOCALAPPDATA%\DLSS5Optimizer\patcher-reste\Fallout New Vegas` verschoben (dgVoodoo-d3d9.dll, ReShade32 als dxgi.dll,
-  fremde ReShade.ini, host64 mit dem veränderten Modell 8270b350…). Dann Installation mit dem Tool, Direktstart
-  FalloutNV.exe: 39 600 Bilder mit DLSS 5, ~44–48 fps, kein Absturz. Das Spiel schrieb beim Beenden iMultiSample=8
-  zurück → `Installer.ReapplyIniTweaks` setzt die Spieleinstellungen vor jedem „Spiel starten“ neu.
-- **Idee:** Reste des DLSS 5 Patchers (Ordner `.dlss5_backup`) erkennen und wegräumen – laut Patcher-Log u. a. in
-  Cyberpunk, RDR2, Wolfenstein II, Skyrim SE, Watch Dogs, Resident Evil 2.
-- **Entschieden: A.** Das Tool lädt das Modell selbst aus rhi-repo, Release `dlssnr-310.8.0` (festes Tag, direkt
-  abgefragt – `source.tag` in components.json, ebenso DXVK `v3.0.2`); angenommen nur mit der hinterlegten Prüfsumme.
-  Import geht weiterhin.
+- Der Nutzer spielt, Claude liest die Logs **selbst im Spielordner** (kein Diagnose-Paket nötig):
+  `dlss5-feed.log` (Feeder, schreibt bei Absturz „EXCEPTION/CRASH RECORDED“ + `dlss5-feed-crash.dmp` + Stack nach
+  Modulen), `ReShade.log`, `<exe>_d3d9.log` (DXVK), `host64\dlss5-feed-host.log` („frame N evaluated … DLSS GPU x ms“),
+  `host64\ReShade.log` (RenoDX: „reference match“, „feature 18 created“, „evaluation succeeded“, `telemetry … fps=`),
+  `deep-fried-chicken.log` („evaluate #N … Success“), `OptiScaler.log`. UE3-Spiele: `Documents\<Publisher>\…\Logs\Launch.log`
+  (enthält den Absturz-Stack mit Modulnamen). Windows: Ereignis 1000/1001 im Anwendungsprotokoll.
+- Eingrenzen durch Umbenennen (`*.test-aus`): erst `d3d9.dll` (ganze Kette aus), dann `ReShade.ini` (Layer aus),
+  dann das Feeder-Add-on. Danach zurückbenennen.
+- Kurze Auswertungsskripte als dateibasierte .NET-Programme im Scratchpad (`#:project …Core.csproj` und
+  **`#:property PublishAot=false`**, sonst scheitert System.Text.Json).
+- Handänderungen in Spielordnern überleben kein „Reparieren“, wenn sie dem gespeicherten Manifest widersprechen –
+  dem Nutzer das jeweils sagen.
+
+## Stand (28.09.2026, abends) – Übergabe
+
+### Spiele beim Nutzer
+
+| Spiel | Weg | Stand |
+|---|---|---|
+| Fallout 3 GOTY (Steam) | DXVK + Feeder + RenoDX, Direktstart Fallout3ng.exe | läuft, 223 200 Bilder, ~47 fps (Modell 100 %) |
+| Fallout: New Vegas (Steam) | wie FO3, Direktstart FalloutNV.exe | läuft, ~44–48 fps (Modell 100 %) |
+| Ultra Street Fighter IV | DXVK + Feeder + RenoDX | läuft mit 60 fps bei `NRResolutionScale=0.5` – **von Hand**, Manifest sagt noch 100 % |
+| GTA IV Complete Edition | DXVK + Feeder + RenoDX, Modell 50 % | läuft, 4K 60 fps; commandline.txt und kräftige Regler **von Hand** gesetzt, Nutzer zufrieden |
+| Batman: Arkham Asylum GOTY | DXVK + Feeder + RenoDX | Absturzursache (fremdes AutoHDR.addon32) beseitigt – **Test mit ganzer Kette steht aus** |
+| Wolfenstein: The Old Blood | Feeder (64-Bit OpenGL) | stürzte in RenoDX ab; **von Hand auf Deep Fried Chicken getauscht, Test steht aus** |
+| Assassin's Creed Black Flag Resynced | ReShade + DLSS-5-Add-on (DX12) mit Deep Fried Chicken | läuft: feature 18, > 6000 Auswertungen „Success“, echte Tiefe/Vektoren, DLSS Qualität |
+| Alan Wake 2 | OptiScaler + DLSS 5 (DX12) empfohlen | Erkennung behoben, Patcher-Reste entfernt – **DLSS 5 noch nicht installiert** (Nutzer startete ohne Installation) |
+
+### Handänderungen beim Nutzer (nicht im Tool-Zustand)
+
+- USF4 `host64\ReShade.ini`: `NRResolutionScale=0.5` (Sicherung `.vor-aufloesungstest`). „Reparieren“ würde 1 schreiben
+  → stattdessen „Rückgängig“ + „Installieren“ mit der neuen EXE (empfiehlt dann selbst 50 %).
+- GTA IV: `GTAIV\commandline.txt` angelegt; `host64\ReShade.ini` kräftige Regler (Sicherung `.vor-staerketest`).
+  Beides kann die neue EXE jetzt selbst (Stärke „kräftig“ wählen, dann Reparieren).
+- Old Blood: `renodx-dlss5.addon64.test-aus`, Deep-Fried-Chicken-Dateien kopiert, `ReShade.ini` mit
+  `LoadFromDllMain=deep-fried-chicken.addon64` (Sicherung `ReShade.ini.vor-dfc-test`).
+- Verschoben nach `patcher-reste\`: Fallout New Vegas, Alan Wake 2, Batman Arkham Asylum GOTY.
+
+### Offene Punkte (in dieser Reihenfolge)
+
+1. Alles bis hier ist committet (Modellauflösung über RenoDX + `NrCostFactor`, USF4-/GTA-IV-/Alan-Wake-2-Einträge,
+   `CommandLineFile`, „DLSS-5-Stärke“, Streamline-Erkennung, `SetAsideForeignAddons`); `publish\DLSS5Optimizer.exe`
+   vom 28.09., 22:18 enthält es. Ob gepusht wurde: `git status -sb` prüfen.
+2. Nutzer auf die neue Einstellung „DLSS-5-Stärke“ hinweisen (neben dem Optimierungsziel).
+3. Old-Blood-Test auswerten. Wenn Deep Fried Chicken läuft: Planer im 64-Bit-OpenGL-Weg nie RenoDX, und dort
+   keine Modellauflösung < 100 % anbieten (`RouteCatalog` Feeder `ModelScaleApis` ohne OpenGL) – mit Test.
+4. Arkham-Asylum-Test mit ganzer Kette auswerten.
+5. Alan Wake 2: Nutzer „DLSS 5 installieren“ klicken lassen, dann testen – zuerst ohne Pathtracing/Ray
+   Reconstruction (unklar, ob OptiScaler-NR bei DLSS-RR greift). Danach Stärke über OptiScaler.ini `[DlssNr]` erhöhen
+   (Nutzer wünscht mehr Intensität) – die Schlüssel dort vorher im installierten OptiScaler.ini nachlesen.
+6. Stärke-Einstellung auch für Deep Fried Chicken (Regler in `deep-fried-chicken.cfg`) und OptiScaler anbieten.
+7. Patcher-Reste automatisch erkennen (`.dlss5_backup`) und das Verschieben im Tool anbieten; laut Patcher-Log
+   betroffen u. a. Cyberpunk, RDR2, Wolfenstein II, Skyrim SE, Watch Dogs, Resident Evil 2.
+8. FO3/FNV laufen mit 100 % bei ~47 fps; das neue Kostenmodell empfiehlt bei Neuinstallation < 100 % für 60 fps.
+   Nutzer fragen, ob ihm 60 fps oder volle Auflösung lieber ist.

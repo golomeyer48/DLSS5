@@ -323,7 +323,8 @@ public class RoutePlannerTests
             (Ids.Feeder, ["dlss5-feed.addon64", "DLSS5_Feed.fx"]),
             (Ids.LumeniteFx, ["lumenite_Kernel.fx", "lumenite_bluenoise256.png"]),
             (Ids.ReShadeHeaders, ["ReShade.fxh", "ReShadeUI.fxh", "DrawText.fxh"]),
-            (Ids.DeepFriedChicken, ["deep-fried-chicken.addon64", "deep-fried-chicken-nvngx.dll"]));
+            (Ids.DeepFriedChicken, ["deep-fried-chicken.addon64", "deep-fried-chicken-nvngx.dll"]),
+            (Ids.RenoDx, ["renodx-dlss5.addon64"]));
         var gameDir = t.Dir("game");
         t.File("game/ReShadePreset.ini", "Techniques=Clarity@Clarity.fx,DLSS5_Feed@DLSS5_Feed.fx\n");
 
@@ -333,8 +334,12 @@ public class RoutePlannerTests
         Assert.Contains(ini, i => i.Target == "ReShadePreset.ini" && i.Key == "Techniques"
                                   && i.Value == "Clarity@Clarity.fx,Lumenite_Kernel@lumenite_Kernel.fx,DLSS5_Feed@DLSS5_Feed.fx");
         Assert.Contains(ini, i => i.Section == "DLSS5_Feed.fx" && i.Value == "DLSS5_MV_PROVIDER=3");
-        Assert.Contains(ini, i => i.Target == "dlss5-feed.cfg" && i.Key == "work_resolution" && i.Value == "75");
-        Assert.Contains(ini, i => i.Key == "LoadFromDllMain");
+        // Reduzierte Modellauflösung: RenoDX rechnet kleiner (NRResolutionScale), der Feeder bleibt bei 100 % –
+        // Deep Fried Chicken kennt keine Modellauflösung und wird dafür übergangen.
+        Assert.Contains(ini, i => i.Target == "dlss5-feed.cfg" && i.Key == "work_resolution" && i.Value == "100");
+        Assert.Contains(ini, i => i.Target == "ReShade.ini" && i.Section == "RenoDX.DLSS5" && i.Key == "NRResolutionScale" && i.Value == "0.75");
+        Assert.DoesNotContain(plan.Steps.OfType<CopyFileStep>(), c => c.Target.Contains("deep-fried-chicken"));
+        Assert.Contains(plan.Steps.OfType<CopyFileStep>(), c => c.Target == "renodx-dlss5.addon64");
         var copies = plan.Steps.OfType<CopyFileStep>().ToList();
         Assert.Contains(copies, c => c.Target == "dxgi.dll" && c.Source.EndsWith("ReShade64.dll"));
         Assert.Contains(copies, c => c.Target == Path.Combine("reshade-shaders", "Shaders", "DLSS5_Feed.fx"));

@@ -48,6 +48,8 @@ public sealed class AppServices
         Planner = new RoutePlanner(Availability, Store)
         {
             DepthOverride = game => Settings.DepthVariants.GetValueOrDefault(game.Game.Key),
+            Strength = () => Settings.Preferences.Strength,
+            Display = () => System?.Display,
         };
         System = WindowsSystem.Read();
     }

@@ -96,8 +96,9 @@ public class LegacyGameTests
     }
 
     [Fact]
-    public void NewVegasGetsDxvkRouteAtFullQualityCappedAt60()
+    public void NewVegasGetsDxvkRouteWithReducedModelToReach60()
     {
+        // Gemessen (4K, 28.09.2026): 100 % ergab 44–48 fps – für 60 fps muss das Modell kleiner rechnen.
         using var t = new TempDir();
         var dir = NewVegasFolder(t);
         var a = new GameAnalyzer(GameDatabase.LoadEmbedded()).Analyze(new GameInfo("Fallout: New Vegas", dir, GameSource.Steam, "22380"));
@@ -107,12 +108,94 @@ public class LegacyGameTests
         Assert.False(rec.Blocked);
         Assert.Equal(60, rec.TargetFps);
         Assert.Equal(RouteId.LegacyDxvkFeeder, rec.Best?.Route.Id);
-        Assert.Equal(1.0, rec.Best!.Config.NrScale);
+        Assert.True(rec.Best!.Config.NrScale < 1.0);
         Assert.Equal(FrameGenMode.Off, rec.Best.Config.FrameGen);
         Assert.Equal(60, rec.Best.Prediction.DisplayedFps);
         // dgVoodoo scheitert in Gamebryo – taucht auch nicht als Alternative auf.
         Assert.DoesNotContain(rec.Alternatives, c => c.Route.Id == RouteId.LegacyFeeder);
         Assert.Contains(rec.Notes, n => n.Contains("60 fps"));
+    }
+
+    [Fact]
+    public void StreetFighterIvAt4kGetsHalfModelFor60AndTheHostIniSaysSo()
+    {
+        // Gemessen (4K, 60 Hz, 28.09.2026): 100 % → 20–23 ms, ≈ 38 fps (Zeitlupe); 50 % → 6,3 ms, stabile 60 fps.
+        using var t = new TempDir();
+        TestPe.Write(t.Combine("Ultra Street Fighter IV/SSFIV.exe"), TestPe.I386, ["kernel32.dll", "d3d9.dll"], trailer: new byte[200_000]);
+        var (store, avail) = AllComponents(t);
+        var system = new SystemInfo(new GpuInfo("NVIDIA GeForce RTX 5070 Ti", new Version(617, 14), 16L << 30), new DisplayInfo(3840, 2160, 60), HardwareSchedulingEnabled: true);
+        var a = new GameAnalyzer(GameDatabase.LoadEmbedded()).Analyze(new GameInfo("Ultra Street Fighter IV", t.Combine("Ultra Street Fighter IV"), GameSource.Manual));
+
+        var rec = new DecisionEngine(avail.IsAvailable, avail.CanAutoDownload).Recommend(a, system, new UserPreferences());
+
+        Assert.Equal("Ultra Street Fighter IV", a.DbEntry?.Name);
+        Assert.Equal(RouteId.LegacyDxvkFeeder, rec.Best?.Route.Id);
+        Assert.Equal(0.5, rec.Best!.Config.NrScale);
+        Assert.True(rec.Best.Prediction.RenderedFps >= 60);
+        var full = new FrameTimeModel(system).Predict(rec.Best.Route, rec.Best.Config with { NrScale = 1.0 }, Bitness.X86, 100);
+        // Gemessen ≈ 38 fps; ohne Messung rechnet das Modell mit 100 fps Grundbildrate (SF4 schafft mehr) – daher tiefer.
+        Assert.InRange(full.RenderedFps, 20, 45);
+
+        var plan = new RoutePlanner(avail, store).Plan(a, rec.Best);
+        Assert.Contains(plan.Steps.OfType<IniSetStep>(), i => i.Target == Path.Combine("host64", "ReShade.ini") && i.Key == "NRResolutionScale" && i.Value == "0.5");
+    }
+
+    [Fact]
+    public void ForeignReShadeAddonsAreSetAsideButOwnStay()
+    {
+        // Arkham Asylum: ein altes AutoHDR.addon32 im Binaries-Ordner ließ das Spiel mit ReShade abstürzen.
+        using var t = new TempDir();
+        TestPe.Write(t.Combine("Batman/Binaries/ShippingPC-BmGame.exe"), TestPe.I386, ["kernel32.dll", "d3d9.dll"], trailer: new byte[200_000]);
+        t.File("Batman/Binaries/AutoHDR.addon32", "fremd");
+        t.File("Batman/Binaries/dlss5-feed.addon32", "vom Tool (Reparieren)");
+        t.File("Batman/Binaries/DisplayCommander.ini", "nur Einstellungen");
+        var (store, avail) = AllComponents(t);
+        var a = new GameAnalyzer(GameDatabase.LoadEmbedded()).Analyze(new GameInfo("Batman: Arkham Asylum GOTY Edition", t.Combine("Batman"), GameSource.Manual));
+        var best = new DecisionEngine(avail.IsAvailable, avail.CanAutoDownload).Recommend(a, System5070Ti, new UserPreferences()).Best!;
+
+        var plan = new RoutePlanner(avail, store).Plan(a, best);
+
+        var removed = plan.Steps.OfType<RemoveFileStep>().Select(r => r.Target).ToList();
+        Assert.Contains("AutoHDR.addon32", removed);
+        Assert.DoesNotContain("dlss5-feed.addon32", removed);
+        Assert.DoesNotContain("DisplayCommander.ini", removed);
+        Assert.Contains(plan.Hints, h => h.Contains("AutoHDR.addon32") && h.Contains("Rückgängig"));
+    }
+
+    [Fact]
+    public void CommandLineIsMergedAndOwnSwitchesWin()
+    {
+        var merged = CommandLineFile.Merge("-norestrictions -width 1920 -height 1080\r\n-fullspecaudio\r\n",
+            CommandLineFile.Resolve(["-availablevidmem 3072.0", "-width {width}", "-height {height}", "-refreshrate {refresh}"], new DisplayInfo(3840, 2160, 60)));
+
+        Assert.Equal("-norestrictions\r\n-width 3840\r\n-height 2160\r\n-fullspecaudio\r\n-availablevidmem 3072.0\r\n-refreshrate 60\r\n", merged);
+        Assert.Equal(["-nomemrestrict"], CommandLineFile.Resolve(["-nomemrestrict", "-width {width}"], null));
+    }
+
+    [Fact]
+    public void GtaIvGetsCommandLineForTheDisplayAndStrongStrengthInTheHost()
+    {
+        using var t = new TempDir();
+        TestPe.Write(t.Combine("Grand Theft Auto IV Complete Edition/GTAIV/GTAIV.exe"), TestPe.I386, ["kernel32.dll", "d3d9.dll"], trailer: new byte[200_000]);
+        t.File("Grand Theft Auto IV Complete Edition/GTAIV/commandline.txt", "-fullspecaudio\r\n");
+        var (store, avail) = AllComponents(t);
+        var system = new SystemInfo(new GpuInfo("NVIDIA GeForce RTX 5070 Ti", new Version(617, 14), 16L << 30), new DisplayInfo(3840, 2160, 60), HardwareSchedulingEnabled: true);
+        var a = new GameAnalyzer(GameDatabase.LoadEmbedded()).Analyze(new GameInfo("Grand Theft Auto IV Complete Edition", t.Combine("Grand Theft Auto IV Complete Edition"), GameSource.Manual));
+        var best = new DecisionEngine(avail.IsAvailable, avail.CanAutoDownload).Recommend(a, system, new UserPreferences()).Best!;
+
+        var strong = new RoutePlanner(avail, store) { Display = () => system.Display, Strength = () => NrStrength.Strong }.Plan(a, best);
+        var standard = new RoutePlanner(avail, store) { Display = () => system.Display }.Plan(a, best);
+
+        Assert.Equal("Grand Theft Auto IV", a.DbEntry?.Name);
+        Assert.Equal(RouteId.LegacyDxvkFeeder, best.Route.Id);
+        var cmd = Assert.Single(strong.Steps.OfType<WriteTextStep>(), w => w.Target == "commandline.txt");
+        Assert.StartsWith("-fullspecaudio\r\n", cmd.Content); // eigener Schalter des Nutzers bleibt
+        Assert.Contains("-width 3840\r\n-height 2160\r\n-refreshrate 60", cmd.Content);
+        var host = Path.Combine("host64", "ReShade.ini");
+        Assert.Contains(strong.Steps.OfType<IniSetStep>(), i => i.Target == host && i.Key == "NRIntensity" && i.Value == "2");
+        Assert.Contains(strong.Steps.OfType<IniSetStep>(), i => i.Target == host && i.Key == "NRSkinStructure" && i.Value == "1");
+        Assert.DoesNotContain(strong.Steps.OfType<IniSetStep>(), i => i.Key == "NRStyle" && i.Value == "2");
+        Assert.Contains(standard.Steps.OfType<IniSetStep>(), i => i.Target == host && i.Key == "NRIntensity" && i.Value == "1");
     }
 
     [Fact]

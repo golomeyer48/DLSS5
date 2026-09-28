@@ -104,6 +104,8 @@
                                         <ComboBox ItemsSource="{Binding Profiles}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Profile}" Margin="0,0,12,0" MinWidth="220" />
                                         <TextBlock Text="Ziel-FPS (0 = Standard)" VerticalAlignment="Center" Margin="0,0,6,0" Style="{StaticResource Muted}" />
                                         <TextBox Text="{Binding TargetFps}" Width="60" Margin="0,0,16,0" />
+                                        <ComboBox ItemsSource="{Binding Strengths}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Strength}" Margin="0,0,16,0" MinWidth="200"
+                                                  ToolTip="Wie kräftig RenoDX das DLSS-5-Ergebnis einmischt (Licht, Tonwerte, Materialdetail). Kostet keine Leistung; gilt ab der nächsten Installation oder „Reparieren“." />
                                         <CheckBox Content="Experimentelle Routen" IsChecked="{Binding AllowExperimental}" />
                                         <CheckBox Content="Frame Generation" IsChecked="{Binding AllowFrameGeneration}" />
                                         <CheckBox Content="Anti-Cheat ignorieren (nur offline!)" IsChecked="{Binding IgnoreAntiCheat}" Foreground="{StaticResource WarningBrush}" />

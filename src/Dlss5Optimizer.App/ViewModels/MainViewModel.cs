@@ -43,6 +43,7 @@ public sealed partial class MainViewModel : ObservableObject
         AllowExperimental = p.AllowExperimental;
         AllowFrameGeneration = p.AllowFrameGeneration;
         IgnoreAntiCheat = p.IgnoreAntiCheat;
+        Strength = p.Strength;
         _loadingPrefs = false;
 
         RefreshSystemInfo();
@@ -59,6 +60,12 @@ public sealed partial class MainViewModel : ObservableObject
         new(OptimizationProfile.Quality, "Qualität (Ziel 60 fps)"),
         new(OptimizationProfile.Balanced, "Ausgewogen (Ziel ¾ der Hz)"),
         new(OptimizationProfile.TargetFps, "Ziel-FPS"),
+    ];
+
+    public IReadOnlyList<Choice<NrStrength>> Strengths { get; } =
+    [
+        new(NrStrength.Standard, "DLSS-5-Stärke: Standard"),
+        new(NrStrength.Strong, "DLSS-5-Stärke: kräftig"),
     ];
 
     public IReadOnlyList<Choice<SrMode>> SrModes { get; } =
@@ -78,6 +85,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _allowExperimental;
     [ObservableProperty] private bool _allowFrameGeneration;
     [ObservableProperty] private bool _ignoreAntiCheat;
+    [ObservableProperty] private NrStrength _strength;
     [ObservableProperty] private SrMode _measuredSrMode = SrMode.Quality;
     [ObservableProperty] private int _measureSeconds = 20;
 
@@ -102,6 +110,13 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnAllowExperimentalChanged(bool value) => PreferencesChanged();
     partial void OnAllowFrameGenerationChanged(bool value) => PreferencesChanged();
 
+    partial void OnStrengthChanged(NrStrength value)
+    {
+        PreferencesChanged();
+        if (!_loadingPrefs)
+            Log($"DLSS-5-Stärke „{(value == NrStrength.Strong ? "kräftig" : "Standard")}“ gilt ab der nächsten Installation oder „Reparieren“ (RenoDX-Wege).");
+    }
+
     partial void OnIgnoreAntiCheatChanged(bool value)
     {
         if (value && !_loadingPrefs && !_dialogs.Confirm("Anti-Cheat ignorieren",
@@ -115,7 +130,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private UserPreferences CurrentPreferences() =>
-        new(Profile, TargetFps > 0 ? TargetFps : null, AllowExperimental, AllowFrameGeneration, IgnoreAntiCheat);
+        new(Profile, TargetFps > 0 ? TargetFps : null, AllowExperimental, AllowFrameGeneration, IgnoreAntiCheat, Strength);
 
     private void PreferencesChanged()
     {

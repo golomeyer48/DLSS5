@@ -48,6 +48,14 @@
       "notes": [ "OptiScaler-Route bevorzugt: Mit dem ReShade-Add-on gibt es ein bekanntes Multi-Thread-Problem bei DLSS." ]
     },
     {
+      "name": "Alan Wake 2",
+      "exeNames": [ "AlanWake2.exe" ],
+      "mainExe": "AlanWake2.exe",
+      "apis": "D3D12",
+      "defaultApi": "D3D12",
+      "notes": [ "Northlight-Engine, nur DirectX 12. Die EXE lädt DirectX über NVIDIA Streamline (sl.interposer.dll), nicht direkt." ]
+    },
+    {
       "name": "Baldur's Gate 3",
       "steamAppIds": [ "1086940" ],
       "exeNames": [ "bg3.exe", "bg3_dx11.exe" ],
@@ -236,6 +244,38 @@
       "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "1" },
       "notes": [
         "Getestet (dlss5-classic-games): Die mitgelieferte d3d8.dll übersetzt schon nach DirectX 9 – sie bleibt, DXVK kommt als d3d9.dll dahinter. dgVoodoo lässt das Spiel abstürzen."
+      ]
+    },
+    {
+      "name": "Grand Theft Auto IV",
+      "namePattern": "^Grand Theft Auto IV",
+      "steamAppIds": [ "12210", "901583" ],
+      "exeNames": [ "GTAIV.exe" ],
+      "apis": "D3D9",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "commandLine": {
+        "file": "commandline.txt",
+        "args": [ "-availablevidmem 3072.0", "-norestrictions", "-nomemrestrict", "-width {width}", "-height {height}", "-refreshrate {refresh}" ],
+        "reason": "Mit DXVK bietet GTA IV sonst kein 4K an (Speicherbremse, DXVK-Issue #1831; Werte laut Gillian's GTA IV Guide)"
+      },
+      "notes": [
+        "Getestet beim Nutzer (28.09.2026): DXVK + Feeder + RenoDX, Modell 50 %, 4K mit 60 fps.",
+        "Nicht mit Alt+Tab aus dem Vollbild wechseln – über DXVK ging dabei das Grafikgerät verloren („Device lost“)."
+      ]
+    },
+    {
+      "name": "Ultra Street Fighter IV",
+      "steamAppIds": [ "45760" ],
+      "exeNames": [ "SSFIV.exe" ],
+      "mainExe": "SSFIV.exe",
+      "apis": "D3D9",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "frameCapFps": 60,
+      "notes": [
+        "Getestet beim Nutzer (28.09.2026): DXVK + Feeder + RenoDX. Die Spielgeschwindigkeit hängt fest an 60 fps – darunter läuft das ganze Spiel in Zeitlupe.",
+        "In 4K kostet DLSS 5 bei voller Modellauflösung 20–23 ms (≈ 38 fps), bei 50 % 6,3 ms – damit stabil 60 fps."
       ]
     },
     {

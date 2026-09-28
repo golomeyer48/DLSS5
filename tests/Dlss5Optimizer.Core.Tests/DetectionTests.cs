@@ -154,6 +154,20 @@ public class GameAnalyzerTests
     }
 
     [Fact]
+    public void StreamlineGameIsDetectedAsD3D12()
+    {
+        // Wie Alan Wake 2: keine d3d12.dll/dxgi.dll in den Imports, nur sl.interposer.dll; D3D12CreateDevice per Name.
+        using var t = new TempDir();
+        TestPe.Write(t.Combine("Northlight.exe"), TestPe.Amd64, ["kernel32.dll", "sl.interposer.dll", "nrd.dll"],
+            trailer: "D3D12CreateDevice\0CreateDXGIFactory\0"u8.ToArray());
+
+        var a = Analyzer().Analyze(new GameInfo("Unbekanntes Streamline-Spiel", t.Path, GameSource.Manual));
+
+        Assert.Null(a.DbEntry);
+        Assert.Equal(GraphicsApi.D3D12, a.Api.Primary);
+    }
+
+    [Fact]
     public void UnrealMonolithicExeDetectedViaStrings()
     {
         using var t = new TempDir();
