@@ -342,3 +342,70 @@ public class VanishedFilesTests
         Assert.DoesNotContain("d3d9.dll", files.Detail);
     }
 }
+
+/// <summary>
+/// Das DLSS-5-Modell liegt nicht im Treiber (Fallout 3 auf Treiber 617.14: „Es fehlen Komponenten:
+/// nvngx-dlssnr“, obwohl die Route „Bereit“ zeigte). Jede Route braucht es; geladen wird nur das
+/// signierte NVIDIA-Original.
+/// </summary>
+public class DlssModelTests
+{
+    private static readonly SystemInfo System5070Ti = new(
+        new GpuInfo("NVIDIA GeForce RTX 5070 Ti", new Version(617, 14), 16L << 30), new DisplayInfo(3840, 2160, 60), HardwareSchedulingEnabled: true);
+
+    [Fact]
+    public void EveryDlss5RouteNeedsTheModel()
+    {
+        foreach (var route in RouteCatalog.All.Where(r => r.Id != RouteId.NativeDlss5))
+            Assert.Contains(route.Components, c => c.AnyOf.Contains(RouteCatalog.Ids.DlssNrModel));
+    }
+
+    [Fact]
+    public void MissingModelIsNoLongerShownAsReadyButAsImport()
+    {
+        using var t = new TempDir();
+        TestPe.Write(t.Combine("Fallout 3 goty/Fallout3.exe"), TestPe.I386, ["kernel32.dll", "d3d9.dll"], largeAddressAware: true);
+        var a = new GameAnalyzer(GameDatabase.LoadEmbedded()).Analyze(new GameInfo("Fallout 3 - Game of the Year Edition", t.Combine("Fallout 3 goty"), GameSource.Steam, "22370"));
+        var catalog = ComponentCatalog.LoadEmbedded();
+        var engine = new DecisionEngine(id => id != RouteCatalog.Ids.DlssNrModel, id => catalog.Get(id)?.CanAutoDownload == true);
+
+        var rec = engine.Recommend(a, System5070Ti, new UserPreferences());
+
+        Assert.Null(rec.Best); // früher „Bereit“ – und dann „Es fehlen Komponenten: nvngx-dlssnr“
+        Assert.Equal(RouteId.LegacyDxvkFeeder, rec.BestWithImports?.Route.Id);
+        Assert.Contains(rec.BestWithImports!.Missing, m => m.Id == RouteCatalog.Ids.DlssNrModel && !m.CanAutoDownload);
+        Assert.Contains(rec.Notes, n => n.Contains("importieren"));
+    }
+
+    [Fact]
+    public void CatalogPinsTheSignedOriginal()
+    {
+        var def = ComponentCatalog.LoadEmbedded().Get(RouteCatalog.Ids.DlssNrModel)!;
+        Assert.False(def.CanAutoDownload);
+        Assert.Contains("e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e", def.PinnedSha256["nvngx_dlssnr.dll"]);
+    }
+
+    [Fact]
+    public void ModifiedModelIsRejectedOnImportAndTheOriginalIsAccepted()
+    {
+        using var t = new TempDir();
+        var good = t.File("good/nvngx_dlssnr.dll", "ORIGINAL");
+        var bad = t.File("bad/NVNGX_DLSSNR.DLL", "LECRAM");
+        var catalog = new ComponentCatalog([new ComponentDefinition
+        {
+            Id = RouteCatalog.Ids.DlssNrModel, Name = "Modell",
+            Source = new ComponentSource { Type = ComponentSourceType.GitHub, Repo = "x/y" },
+            ExpectedFiles = ["nvngx_dlssnr.dll"],
+            PinnedSha256 = new() { ["nvngx_dlssnr.dll"] = [ComponentStore.Sha256Of(good)] },
+        }]);
+        var store = new ComponentStore(t.Combine("store"), catalog);
+
+        var e = Assert.Throws<InvalidDataException>(() => store.Import(RouteCatalog.Ids.DlssNrModel, [bad]));
+        Assert.Contains("unveränderte", e.Message);
+        Assert.False(store.IsAvailable(RouteCatalog.Ids.DlssNrModel));
+
+        store.Import(RouteCatalog.Ids.DlssNrModel, [good]);
+        Assert.True(store.IsAvailable(RouteCatalog.Ids.DlssNrModel));
+        Assert.False(catalog.Get(RouteCatalog.Ids.DlssNrModel)!.MatchesPin(bad));
+    }
+}

@@ -442,7 +442,7 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
     }
 
     private void CopyModel(Context c, string dir) =>
-        c.CopyResolved(Ids.DlssNrModel, SystemFileLocator.DlssNrFile, Path.Combine(dir, SystemFileLocator.DlssNrFile), "DLSS-5-Modell (aus dem NVIDIA-Treiber)");
+        c.CopyResolved(Ids.DlssNrModel, SystemFileLocator.DlssNrFile, Path.Combine(dir, SystemFileLocator.DlssNrFile), "DLSS-5-Modell (signierte NVIDIA-Datei)");
 
     /// <summary>
     /// Deep Fried Chicken, wenn der Nutzer es importiert hat (vom Feeder-Autor empfohlen), sonst RenoDX.

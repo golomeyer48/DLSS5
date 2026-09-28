@@ -90,7 +90,7 @@ public sealed record DisplayInfo(int Width, int Height, int RefreshHz)
 
 public sealed record SystemInfo(GpuInfo Gpu, DisplayInfo Display, bool? HardwareSchedulingEnabled = null)
 {
-    /// <summary>Ab diesem Treiber liefert NVIDIA nvngx_dlssnr.dll (DLSS 5 Neural Rendering) mit.</summary>
+    /// <summary>Ältester Treiber, mit dem das DLSS-5-Modell (nvngx_dlssnr.dll 310.8.0) in den Referenz-Setups läuft.</summary>
     public static readonly Version MinDlss5Driver = new(616, 56);
 }
 

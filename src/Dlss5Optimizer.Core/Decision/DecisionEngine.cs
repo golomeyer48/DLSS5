@@ -166,7 +166,7 @@ public sealed class DecisionEngine
         if (CheckGpuOnly(system) is { } gpu)
             return gpu;
         if (system.Gpu.DriverVersion is { } drv && drv < SystemInfo.MinDlss5Driver)
-            return $"Treiber {drv} ist zu alt. DLSS 5 braucht mindestens {SystemInfo.MinDlss5Driver} (nvngx_dlssnr.dll ist erst ab dieser Version im Treiber).";
+            return $"Treiber {drv} ist zu alt. DLSS 5 braucht mindestens {SystemInfo.MinDlss5Driver} (ältere Treiber führen das DLSS-5-Modell nicht aus).";
         if (system.Gpu.DriverVersion is { Major: 616, Minor: 64 or 86 })
             notes.Add($"Treiber {system.Gpu.DriverVersion}: Mit dem DLSS-5-Modell 310.8 sind Abstürze einzelner Add-ons bekannt. Bei Problemen Treiber 616.56 verwenden.");
         if (system.HardwareSchedulingEnabled == false)

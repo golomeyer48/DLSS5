@@ -131,12 +131,17 @@
     },
     {
       "id": "nvngx-dlssnr",
-      "name": "DLSS 5 Modell (nvngx_dlssnr.dll)",
-      "description": "NVIDIAs Neural-Rendering-Modell. Wird aus dem installierten Treiber (ab 616.56) übernommen.",
-      "license": "NVIDIA (Teil des Treibers)",
-      "source": { "type": "DriverStore", "fileName": "nvngx_dlssnr.dll" },
+      "name": "DLSS-5-Modell (nvngx_dlssnr.dll 310.8.0)",
+      "description": "NVIDIAs Neural-Rendering-Modell für RTX 50. Es liegt weder im Treiber noch im öffentlichen DLSS-SDK und muss importiert werden. Angenommen wird nur die unveränderte, von NVIDIA signierte Fassung 310.8.0 (Prüfsumme fest hinterlegt).",
+      "license": "NVIDIA (proprietär)",
+      "closedSource": true,
+      "source": { "type": "Import", "distribution": "Nicht automatisch ladbar – die signierte Fassung 310.8.0 selbst beschaffen (RenoDX-Discord) und hier importieren" },
       "expectedFiles": [ "nvngx_dlssnr.dll" ],
-      "notes": [ "Wird nicht aus dem Treiber gefunden? Datei aus dem Treiberpaket importieren." ]
+      "pinnedSha256": { "nvngx_dlssnr.dll": [ "e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e" ] },
+      "notes": [
+        "Import: die DLL oder das ZIP (nvngx_dlssnr_310.8.0.zip) wählen.",
+        "Angenommen wird nur genau die von NVIDIA signierte Datei 310.8.0 – veränderte Builds (310.8.Lecram, SF, RTX40) werden abgelehnt, auf einer RTX 50 sind sie nicht nötig."
+      ]
     },
     {
       "id": "nvngx-dlss",

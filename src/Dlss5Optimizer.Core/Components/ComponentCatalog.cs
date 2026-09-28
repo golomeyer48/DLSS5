@@ -47,6 +47,24 @@ public sealed record ComponentDefinition
     /// </summary>
     public string[] ExpectedFiles { get; init; } = [];
 
+    /// <summary>
+    /// Dateiname → zulässige SHA-256-Werte. Solche Dateien werden nur in genau dieser Fassung angenommen –
+    /// beim Download, beim Import und wenn sie schon auf dem PC gefunden werden (z. B. das signierte
+    /// DLSS-5-Modell von NVIDIA; veränderte Builds werden abgelehnt).
+    /// </summary>
+    public Dictionary<string, string[]> PinnedSha256 { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Stimmt die Datei mit einem hinterlegten Wert überein (oder ist für sie nichts hinterlegt)?</summary>
+    public bool MatchesPin(string path)
+    {
+        // Der JSON-Leser legt ein Wörterbuch mit Standardvergleich an – Dateinamen hier ohne Groß/klein vergleichen.
+        var name = Path.GetFileName(path);
+        var allowed = PinnedSha256.FirstOrDefault(kv => kv.Key.Equals(name, StringComparison.OrdinalIgnoreCase)).Value;
+        if (allowed is null || allowed.Length == 0)
+            return true;
+        return allowed.Contains(ComponentStore.Sha256Of(path), StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>Dateien, die aus einem Installer mit angehängtem ZIP geholt werden (ReShade-Setup).</summary>
     public string[] ExtractFromInstaller { get; init; } = [];
     public string[] Notes { get; init; } = [];

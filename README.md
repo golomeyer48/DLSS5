@@ -35,7 +35,7 @@ automatisch die Variante mit der besten Kombination aus Bildqualität und Leistu
 
 Voraussetzungen:
 - GeForce RTX 50
-- NVIDIA-Treiber **≥ 616.56**; ab dieser Version liegt das DLSS-5-Modell `nvngx_dlssnr.dll` im Treiber
+- NVIDIA-Treiber **≥ 616.56** (getestet in den Referenz-Setups bis 617.14)
 - Windows 10/11 x64
 
 Für DLSS Frame Generation muss die hardwarebeschleunigte GPU-Planung eingeschaltet sein.
@@ -203,13 +203,13 @@ Die Hebel, sortiert nach Wirkung:
 | Upscaling-Modus + DLSS-4.5-Preset (M bei Leistung, L bei Ultra-Leistung) | senkt die Render-Zeit | Preset M hält „Leistung“ nahe an „Qualität“ |
 | Frame Generation (MFG bis 6× auf RTX 50, Smooth Motion ab RTX 40) | vervielfacht die angezeigte Bildrate | mehr Latenz: Basis ≥ 60 fps, Reflex an |
 | DX12 statt DX11/Vulkan für Mod-Routen | spart Kopien und die zweite DLSS-Sitzung | – |
-| Treiber 616.56 | stabil | 616.64/616.86: bekannte Abstürze mancher Add-ons |
+| Treiber 616.56 oder neuer | stabil | ab 616.64 nur mit RenoDX ≥ 6.1 (lädt das Tool) oder Deep Fried Chicken; ältere RenoDX stürzen im Modell ab |
 
 ## Komponenten und Rechtliches
 
 **Das Tool liefert keine fremden Dateien aus.**
 - Open-Source-Teile lädt es auf deinem PC direkt aus der Originalquelle, mit SHA-256-Prüfung, wo das Release einen Hash angibt.
-- Das DLSS-5-Modell kommt aus deinem NVIDIA-Treiber.
+- Das DLSS-5-Modell importierst du selbst; angenommen wird nur NVIDIAs signierte Fassung 310.8.0 (siehe unten).
 - Geschlossene Add-ons importierst du selbst.
 
 | Komponente | Lizenz | Beschaffung |
@@ -220,7 +220,7 @@ Die Hebel, sortiert nach Wirkung:
 | LumeniteFX | AGNYA (Rechte beim Autor) | direkt vom Repo des Autors |
 | dgVoodoo2 | Freeware | GitHub-Releases |
 | PresentMon | MIT | GitHub-Releases |
-| `nvngx_dlssnr.dll` | NVIDIA | aus dem installierten Treiber |
+| `nvngx_dlssnr.dll` 310.8.0 (DLSS-5-Modell) | NVIDIA, proprietär | **Import**; angenommen wird nur die von NVIDIA signierte Originaldatei, Prüfsumme fest hinterlegt (siehe unten) |
 | `nvngx_dlss.dll` | NVIDIA DLSS SDK | aus einem installierten Spiel, sonst von github.com/NVIDIA/DLSS |
 | DXVK | zlib | GitHub-Releases |
 | d3d8to9 | BSD-2 | GitHub-Releases (crosire/d3d8to9) |
@@ -228,8 +228,16 @@ Die Hebel, sortiert nach Wirkung:
 | **RenoDX DLSS 5** | Closed Source | neueste **stabile** Version aus dem Community-Spiegel (RankFTW/rhi-repo) nach extra Warnung, oder Import |
 | **Deep Fried Chicken** | Closed Source, Weitergabe untersagt | nur **Import** (Discord des Autors) |
 
-Bewusst **nicht** unterstützt: veränderte oder geleakte DLSS-Modelle, etwa die „RTX 20–40“-Builds.
-Auf einer RTX 50 wird das offizielle Modell aus dem Treiber verwendet.
+**Das DLSS-5-Modell** `nvngx_dlssnr.dll` liegt weder im NVIDIA-Treiber (Stand 617.14) noch im öffentlichen
+DLSS-SDK. Alle Community-Setups beziehen es aus dem RenoDX-Discord. Du importierst es im Reiter „Komponenten“,
+als DLL oder als ZIP. Angenommen wird **nur** die unveränderte, von NVIDIA signierte Fassung 310.8.0:
+- Signatur von NVIDIA Corporation (DigiCert-Kette)
+- SHA-256 der DLL: `e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e`, fest in `components.json` hinterlegt
+
+Jede andere Datei wird abgelehnt, ob importiert oder auf dem PC gefunden.
+
+Bewusst **nicht** unterstützt: veränderte Builds (310.8.Lecram, 310.8.SF, „RTX 20–40“-Builds). Auf einer
+RTX 50 sind sie nicht nötig.
 
 ## Sicherheit
 
@@ -262,7 +270,7 @@ steht in der Job-Zusammenfassung und im Artefakt `selftest-report`. Geprüft wir
    - GPU, Anzeige und Spielbibliotheken werden abgefragt, ohne abzustürzen
 
 Heruntergeladene Dateien werden danach gelöscht, nichts davon landet in Artefakten. Deep Fried Chicken
-und das DLSS-5-Modell aus dem Treiber sind dabei Platzhalter. Ohne Internet: `--synthetic`.
+und das DLSS-5-Modell sind dabei Platzhalter. Ohne Internet: `--synthetic`.
 
 Stand des letzten Laufs (28.09.2026): alle Prüfungen bestanden. Diese Versionen wurden geladen:
 

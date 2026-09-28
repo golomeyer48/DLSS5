@@ -351,8 +351,10 @@ public sealed partial class MainViewModel : ObservableObject
         if (defs.Count == 0)
             return true;
 
-        var lines = defs.Select(d => $"• {d.Name} – {d.License}\n   Quelle: {(d.Source.Repo is { } r ? "github.com/" + r : d.Source.Url)}");
-        bool anyClosed = defs.Any(d => d.ClosedSource);
+        var lines = defs.Select(d => $"• {d.Name} – {d.License}\n   Quelle: {(d.Source.Repo is { } r ? "github.com/" + r : d.Source.Url)}"
+                                     + (d.PinnedSha256.Count > 0 ? "\n   Prüfsumme fest hinterlegt – nur die unveränderte Originaldatei wird angenommen." : ""));
+        // Dateien mit hinterlegter Prüfsumme sind überprüfbar – die Warnung gilt nur für die anderen.
+        bool anyClosed = defs.Any(d => d.ClosedSource && d.PinnedSha256.Count == 0);
         var header = "Diese Komponenten werden direkt aus der Originalquelle geladen:"
                      + (anyClosed ? "\n\n⚠ Enthält Closed-Source-Add-ons aus der Community: Inhalt und Herkunft sind nicht überprüfbar. Nur laden, wenn du der Quelle vertraust." : "");
         if (!_dialogs.ConfirmList("Komponenten laden", header, lines))
@@ -738,7 +740,10 @@ public sealed partial class MainViewModel : ObservableObject
             ? $"{d}" + (d < SystemInfo.MinDlss5Driver ? $" – zu alt, mindestens {SystemInfo.MinDlss5Driver}" : " ✓")
             : "unbekannt";
         DisplayText = $"{sys.Display.Width}×{sys.Display.Height} @ {sys.Display.RefreshHz} Hz";
-        ModelText = _s.DlssNrModel() ?? "nicht gefunden – Treiber ≥ 616.56 installieren oder Datei importieren";
+        ModelText = _s.DlssNrModel()
+                    ?? (_s.Store.Get(RouteCatalog.Ids.DlssNrModel) is not null
+                        ? "importiert (von NVIDIA signiert, Prüfsumme geprüft)"
+                        : "fehlt – signierte NVIDIA-Datei 310.8.0 im Reiter „Komponenten“ importieren");
         HagsText = sys.HardwareSchedulingEnabled switch
         {
             true => "an ✓",

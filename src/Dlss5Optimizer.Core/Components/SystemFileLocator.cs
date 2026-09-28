@@ -1,5 +1,6 @@
 using Dlss5Optimizer.Core.Detection;
 using Dlss5Optimizer.Core.Models;
+using RouteIds = Dlss5Optimizer.Core.Decision.RouteCatalog.Ids;
 
 namespace Dlss5Optimizer.Core.Components;
 
@@ -19,6 +20,8 @@ public static class SystemFileLocator
     /// <summary>
     /// Sucht nvngx_dlssnr.dll in den NVIDIA-Treiberpaketen (nv*.inf_amd64_*). Bei mehreren
     /// installierten Treibern gewinnt die höchste Dateiversion, dann das neueste Datum.
+    /// Stand 617.14 liefert NVIDIA das Modell nicht mit – die Suche bleibt für spätere Treiber;
+    /// ein Fund zählt nur, wenn er zur hinterlegten Prüfsumme passt (siehe AppServices).
     /// </summary>
     public static string? FindDlssNrModel(string? driverStoreRoot = null)
     {
@@ -59,12 +62,12 @@ public sealed class ComponentAvailability(ComponentCatalog catalog, ComponentSto
         var def = catalog.Get(id);
         if (def is null)
             return false;
-        return def.Source.Type switch
-        {
-            ComponentSourceType.DriverStore => dlssNrModel() is not null || store.IsAvailable(id),
-            ComponentSourceType.GameLibrary => dlssRuntime() is not null || store.IsAvailable(id),
-            _ => store.IsAvailable(id),
-        };
+        // Schon auf dem PC vorhanden (Treiber, Spiel) – sonst aus dem Speicher.
+        if (id.Equals(RouteIds.DlssNrModel, StringComparison.OrdinalIgnoreCase) && dlssNrModel() is not null)
+            return true;
+        if (def.Source.Type == ComponentSourceType.GameLibrary && dlssRuntime() is not null)
+            return true;
+        return store.IsAvailable(id);
     }
 
     public bool CanAutoDownload(string id) => catalog.Get(id)?.CanAutoDownload == true;
@@ -73,7 +76,7 @@ public sealed class ComponentAvailability(ComponentCatalog catalog, ComponentSto
     public string? ResolveFile(string id, string fileName, bool prefer32Bit = false)
     {
         var def = catalog.Get(id);
-        if (def?.Source.Type == ComponentSourceType.DriverStore && dlssNrModel() is { } nr && Path.GetFileName(nr).Equals(fileName, StringComparison.OrdinalIgnoreCase))
+        if (id.Equals(RouteIds.DlssNrModel, StringComparison.OrdinalIgnoreCase) && dlssNrModel() is { } nr && Path.GetFileName(nr).Equals(fileName, StringComparison.OrdinalIgnoreCase))
             return nr;
         if (def?.Source.Type == ComponentSourceType.GameLibrary && dlssRuntime() is { } rt && Path.GetFileName(rt).Equals(fileName, StringComparison.OrdinalIgnoreCase))
             return rt;

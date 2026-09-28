@@ -64,7 +64,10 @@ public sealed class AppServices
     {
         if (!_dlssNrModelSearched)
         {
-            _dlssNrModel = NvidiaPaths.FindDlssNrModel();
+            // Nur die unveränderte NVIDIA-Datei zählt; andere Fassungen lädt das Tool stattdessen herunter.
+            var found = NvidiaPaths.FindDlssNrModel();
+            var def = Catalog.Get(RouteCatalog.Ids.DlssNrModel);
+            _dlssNrModel = found is not null && (def is null || def.MatchesPin(found)) ? found : null;
             _dlssNrModelSearched = true;
         }
         return _dlssNrModel;

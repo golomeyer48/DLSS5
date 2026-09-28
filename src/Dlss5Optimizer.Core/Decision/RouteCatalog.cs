@@ -30,7 +30,7 @@ public static class RouteCatalog
     private static readonly ComponentRequirement NeuralConsumer =
         new("DLSS-5-Add-on (RenoDX oder Deep Fried Chicken)", [Ids.DeepFriedChicken, Ids.RenoDx]);
 
-    private static readonly ComponentRequirement NrModel = ComponentRequirement.One(Ids.DlssNrModel, "nvngx_dlssnr.dll (aus dem NVIDIA-Treiber)");
+    private static readonly ComponentRequirement NrModel = ComponentRequirement.One(Ids.DlssNrModel, "DLSS-5-Modell (nvngx_dlssnr.dll)");
 
     public static IReadOnlyList<RouteDefinition> All { get; } =
     [
@@ -59,7 +59,7 @@ public static class RouteCatalog
             Apis: GraphicsApi.D3D12,
             Requires64Bit: true, RequiresGameDlss: true, AcceptsFsrOrXess: false,
             MotionVectors: MotionVectorSource.Engine, OverheadMs: 0.2, SupportsSuperResolution: true,
-            Components: [ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"), NeuralConsumer],
+            Components: [ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"), NeuralConsumer, NrModel],
             Caveats: ["Closed-Source-Add-on aus der Community; Herkunft ungeprüft."]),
 
         new(RouteId.BridgeD3D11, "dlss5-bridge (DirectX 11)",
@@ -67,7 +67,7 @@ public static class RouteCatalog
             Apis: GraphicsApi.D3D11,
             Requires64Bit: true, RequiresGameDlss: true, AcceptsFsrOrXess: false,
             MotionVectors: MotionVectorSource.Engine, OverheadMs: 0.9, SupportsSuperResolution: true,
-            Components: [ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"), ComponentRequirement.One(Ids.Bridge, "dlss5-bridge"), NeuralConsumer],
+            Components: [ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"), ComponentRequirement.One(Ids.Bridge, "dlss5-bridge"), NeuralConsumer, NrModel],
             Caveats: ["Kopien + ca. 0,8 ms CPU pro Frame. Mit skip_game=1 entfällt die doppelte DLSS-Auswertung."]),
 
         new(RouteId.BridgeVulkan, "dlss5-bridge (Vulkan)",
@@ -75,7 +75,7 @@ public static class RouteCatalog
             Apis: GraphicsApi.Vulkan,
             Requires64Bit: true, RequiresGameDlss: true, AcceptsFsrOrXess: false,
             MotionVectors: MotionVectorSource.Engine, OverheadMs: 1.5, SupportsSuperResolution: true,
-            Components: [ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"), ComponentRequirement.One(Ids.Bridge, "dlss5-bridge"), NeuralConsumer],
+            Components: [ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"), ComponentRequirement.One(Ids.Bridge, "dlss5-bridge"), NeuralConsumer, NrModel],
             Caveats: ["Zwei DLSS-Sitzungen gleichzeitig (Spiel + Spiegel).", "NVIDIA Smooth Motion muss für Vulkan aus sein.", "ReShade für Vulkan wird global als Vulkan-Layer registriert (Administratorrechte)."],
             SemiAutomatic: true,
             SmoothMotionIncompatibleApis: GraphicsApi.Vulkan),
@@ -93,6 +93,7 @@ public static class RouteCatalog
                 ComponentRequirement.One(Ids.ReShadeHeaders, "ReShade-Shader-Header"),
                 ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
                 NeuralConsumer,
+                NrModel,
             ],
             Caveats:
             [
@@ -118,6 +119,7 @@ public static class RouteCatalog
                 ComponentRequirement.One(Ids.ReShadeHeaders, "ReShade-Shader-Header"),
                 ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
                 NeuralConsumer,
+                NrModel,
             ],
             Caveats: ["Alte Spiele laufen oft mit fester Bildrate – DLSS 5 kostet dann nur Leistungsreserve.", "dgVoodoo scheitert in manchen Engines (z. B. Gamebryo: Fallout 3/New Vegas) – dort die DXVK-Route nehmen."],
             Experimental: true),
@@ -137,6 +139,7 @@ public static class RouteCatalog
                 ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
                 // Deep Fried Chicken ist auf 32-Bit-Vulkan (DXVK) laut Feeder-Doku ungetestet.
                 ComponentRequirement.One(Ids.RenoDx, "RenoDX DLSS 5 Add-on"),
+                NrModel,
             ],
             Caveats:
             [
@@ -160,6 +163,7 @@ public static class RouteCatalog
                 ComponentRequirement.One(Ids.ReShadeHeaders, "ReShade-Shader-Header"),
                 ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
                 ComponentRequirement.One(Ids.RenoDx, "RenoDX DLSS 5 Add-on"),
+                NrModel,
             ],
             Caveats:
             [

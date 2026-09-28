@@ -28,6 +28,7 @@ public static class ComponentCheck
         [Ids.OptiScalerPreUpscale] = [("OptiScaler.dll", Bitness.X64), ("OptiScaler.ini", null)],
         [Ids.Bridge] = [("dlss5-bridge.addon64", Bitness.X64)],
         [Ids.DlssRuntime] = [("nvngx_dlss.dll", Bitness.X64)],
+        [Ids.DlssNrModel] = [("nvngx_dlssnr.dll", Bitness.X64)],
         [Ids.PresentMon] = [("PresentMon*.exe", Bitness.X64)],
     };
 

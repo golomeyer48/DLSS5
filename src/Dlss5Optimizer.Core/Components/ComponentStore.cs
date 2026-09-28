@@ -54,7 +54,8 @@ public sealed class ComponentStore(string root, ComponentCatalog catalog)
     /// Übernimmt Dateien, Ordner oder Archive (zip/7z/rar) in den Speicher und prüft, ob die
     /// erwarteten Dateien dabei sind. Bei Fehlern bleibt der vorherige Stand erhalten.
     /// </summary>
-    public StoredComponent Import(string id, IEnumerable<string> sources, string version = "importiert", string origin = "Import")
+    /// <param name="verifyPins">Nur der Selbsttest schaltet das für Platzhalter ab.</param>
+    public StoredComponent Import(string id, IEnumerable<string> sources, string version = "importiert", string origin = "Import", bool verifyPins = true)
     {
         var def = catalog.Get(id) ?? throw new ArgumentException($"Unbekannte Komponente: {id}");
         var staging = Path.Combine(root, id, "staging-" + Guid.NewGuid().ToString("N")[..8]);
@@ -81,6 +82,18 @@ public sealed class ComponentStore(string root, ComponentCatalog catalog)
             var missing = MissingExpected(def, staging).ToList();
             if (missing.Count > 0)
                 throw new InvalidDataException($"{def.Name}: Es fehlen erwartete Dateien: {string.Join(", ", missing)}");
+            if (verifyPins)
+            {
+                foreach (var name in def.PinnedSha256.Keys)
+                {
+                    foreach (var f in Directory.EnumerateFiles(staging, name, new EnumerationOptions { RecurseSubdirectories = true, MatchCasing = MatchCasing.CaseInsensitive }))
+                    {
+                        if (!def.MatchesPin(f))
+                            throw new InvalidDataException($"{def.Name}: {name} ist nicht die erwartete, unveränderte Fassung (SHA-256 {Sha256Of(f)[..16]}…). "
+                                                           + "Veränderte Builds werden nicht verwendet.");
+                    }
+                }
+            }
 
             var files = Directory.EnumerateFiles(staging, "*", SearchOption.AllDirectories)
                 .Select(f => new StoredFile(Path.GetRelativePath(staging, f), Sha256Of(f), new FileInfo(f).Length))

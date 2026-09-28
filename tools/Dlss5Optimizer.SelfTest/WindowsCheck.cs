@@ -188,7 +188,7 @@ public static class WindowsCheck
             var sys = WindowsSystem.Read();
             return $"{(sys.Gpu.Name is { Length: > 0 } n ? n : "keine")}, Treiber {sys.Gpu.DriverVersion?.ToString() ?? "–"}, {sys.Display.Width}×{sys.Display.Height} @ {sys.Display.RefreshHz} Hz, HAGS {sys.HardwareSchedulingEnabled?.ToString() ?? "unbekannt"}";
         });
-        Try("DLSS-5-Modell im Treiber", () => NvidiaPaths.FindDlssNrModel() ?? "nicht vorhanden (keine NVIDIA-Karte auf dem Build-Rechner)");
+        Try("DLSS-5-Modell im Treiber", () => NvidiaPaths.FindDlssNrModel() ?? "nicht vorhanden (wird stattdessen geladen)");
         Try("DirectX-Laufzeit (D3DX9) für d3d8to9", () => CrashLog.HasD3dx9Runtime(is32Bit: true) ? "vorhanden" : "fehlt – die App warnt dann vor der Installation");
         Try("Spielbibliotheken lesen", () =>
         {

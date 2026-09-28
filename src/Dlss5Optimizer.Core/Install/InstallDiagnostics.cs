@@ -241,7 +241,7 @@ public static class InstallDiagnostics
         {
             if (Contains(nrLog, "0xbad00001"))
                 checks.Add(new("DLSS 5 (Neural Rendering)", DiagnosticStatus.Failed,
-                    "Das DLSS-5-Modell lässt sich nicht anlegen (0xbad00001) – nur RTX 50, Treiber ≥ 616.56 und das Modell aus dem Treiber verwenden."));
+                    "Das DLSS-5-Modell lässt sich nicht anlegen (0xbad00001) – nur RTX 50, Treiber ≥ 616.56 und das signierte Modell 310.8.0 verwenden („Reparieren“)."));
             else if (Contains(nrLog, "workset pool exhausted"))
                 checks.Add(new("DLSS 5 (Neural Rendering)", DiagnosticStatus.Failed,
                     "RenoDX gibt nach wenigen Bildern auf („workset pool exhausted“) – bekannt bei OpenGL mit RenoDX 4.7; eine andere RenoDX-Version importieren."));

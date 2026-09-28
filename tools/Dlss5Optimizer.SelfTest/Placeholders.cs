@@ -16,7 +16,7 @@ public static class Placeholders
     public static void EnsureDriverModel(ComponentStore store)
     {
         if (!store.IsAvailable(Ids.DlssNrModel))
-            Import(store, Ids.DlssNrModel, "Platzhalter", dir => Pe64(dir, "nvngx_dlssnr.dll"));
+            Import(store, Ids.DlssNrModel, "Platzhalter", dir => Pe64(dir, "nvngx_dlssnr.dll"), verifyPins: false);
     }
 
     public static void EnsureDeepFriedChicken(ComponentStore store)
@@ -108,14 +108,14 @@ public static class Placeholders
         Text(dir, "!! EXTRACT ALL FILES TO GAME FOLDER !!.md", "readme");
     }
 
-    private static void Import(ComponentStore store, string id, string version, Action<string> build)
+    private static void Import(ComponentStore store, string id, string version, Action<string> build, bool verifyPins = true)
     {
         var tmp = Path.Combine(Path.GetTempPath(), "dlss5-placeholder-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(tmp);
         try
         {
             build(tmp);
-            store.Import(id, Directory.EnumerateFileSystemEntries(tmp).ToList(), version, "Selbsttest");
+            store.Import(id, Directory.EnumerateFileSystemEntries(tmp).ToList(), version, "Selbsttest", verifyPins);
         }
         finally
         {
