@@ -10,13 +10,23 @@ automatisch die Variante mit der besten Kombination aus Bildqualität und Leistu
 - installiert mit Sicherung und stellt auf Knopfdruck den Originalzustand wieder her
 - prüft nach dem ersten Start, ob alles greift, und stellt bei einem Absturz selbst auf den anderen Übersetzer um
 
-> **Status:** Erste Version. Kern und Installer sind mit 131 Unit-Tests abgedeckt. Bei jedem Build läuft
+> **Status:** Erste Version. Kern und Installer sind mit 135 Unit-Tests abgedeckt. Bei jedem Build läuft
 > außerdem ein [Selbsttest](#selbsttest) auf einem Windows-Rechner: Er lädt alle Komponenten echt herunter,
 > installiert jede Route in nachgebaute Spiele und nimmt sie wieder zurück. Was dort nicht geht, ist das
 > eigentliche Rendern: DLSS 5 im laufenden Spiel ist nur auf einer echten RTX 50 prüfbar. Bitte zuerst mit
 > einem Einzelspieler-Spiel ausprobieren.
 
 ## Schnellstart
+
+**Quellcode lokal einrichten** (z. B. in `D:\DLSS5`):
+```powershell
+git clone https://github.com/golomeyer48/DLSS5-Optimizer.git D:\DLSS5
+cd D:\DLSS5
+.\build.bat        # braucht das .NET 10 SDK; die EXE landet in publish\
+claude             # Claude Code liest CLAUDE.md und kennt damit Aufbau, Regeln und Stand
+```
+
+**Nur benutzen:**
 
 1. **Holen:** Unter *Actions → DLSS5 Optimizer → neuester Lauf → Artifacts* die Datei
    `DLSS5Optimizer-win-x64` herunterladen (eine einzelne EXE, kein .NET nötig).

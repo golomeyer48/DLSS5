@@ -1,0 +1,79 @@
+name: DLSS5 Optimizer
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Tests
+        run: dotnet test tests/Dlss5Optimizer.Core.Tests -c Release --logger "console;verbosity=normal"
+
+      - name: Veröffentlichen (Single-File, win-x64)
+        run: dotnet publish src/Dlss5Optimizer.App -c Release -o publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DLSS5Optimizer-win-x64
+          path: publish/DLSS5Optimizer.exe
+          if-no-files-found: error
+
+      # Startet die fertige EXE mit einem nachgebauten „Fallout 3“ und speichert alle Reiter als PNG –
+      # scheitert, wenn das Fenster nicht aufgeht (z. B. Fehler in Stilen/Vorlagen, die erst zur Laufzeit auffallen).
+      - name: Oberfläche starten und Bildschirmfotos speichern
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $games = Join-Path $env:RUNNER_TEMP "games"
+          New-Item -ItemType Directory -Force -Path (Join-Path $games "Fallout 3") | Out-Null
+          Copy-Item "$env:WINDIR\SysWOW64\cmd.exe" (Join-Path $games "Fallout 3\Fallout3.exe")
+          $out = Join-Path $env:GITHUB_WORKSPACE "screenshots"
+          $p = Start-Process -FilePath (Resolve-Path "publish\DLSS5Optimizer.exe").Path -ArgumentList @("--screenshot", $out, "--folder", $games) -PassThru -Wait
+          if (Test-Path (Join-Path $out "fehler.txt")) { Get-Content (Join-Path $out "fehler.txt") }
+          Get-ChildItem $out -ErrorAction SilentlyContinue | Format-Table Name, Length
+          if ($p.ExitCode -ne 0) { throw "Oberfläche beendet mit Code $($p.ExitCode)" }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-screenshots
+          path: screenshots
+          if-no-files-found: warn
+
+  # Selbsttest gegen die echte Welt: lädt alle Komponenten aus ihren Originalquellen, installiert jede
+  # Route in nachgebaute Spielordner und nimmt sie wieder zurück, prüft Registry/Vulkan-Layer,
+  # Absturzprotokoll und Prozess-Module. Heruntergeladene Dateien werden danach gelöscht, nichts davon
+  # landet in Artefakten.
+  selftest:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Selbsttest
+        env:
+          # Nur für die GitHub-API (höheres Abfragelimit); das Programm schickt ihn an keinen anderen Host.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: dotnet run --project tools/Dlss5Optimizer.SelfTest -c Release -f net10.0-windows -- --report selftest.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selftest-report
+          path: selftest.md
+          if-no-files-found: ignore
