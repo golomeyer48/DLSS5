@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Dlss5Optimizer.Core.Components;
 using Dlss5Optimizer.Core.Decision;
+using Dlss5Optimizer.Core.Models;
 
 namespace Dlss5Optimizer.Core.Install;
 
@@ -230,6 +231,31 @@ public sealed class Installer(Action<string, bool>? registerVulkanLayer = null, 
         // Erst jetzt sind z. B. host64\ oder reshade-shaders\ leer (die Logs darin sind weg).
         RemoveCreatedDirectories(gameDir, manifest.CreatedDirectories);
         TryDeleteDirectory(StateDir(gameDir));
+    }
+
+    /// <summary>
+    /// Setzt die Spieleinstellungen aus der Datenbank erneut (vor jedem Start). Manche Spiele schreiben sie beim Beenden
+    /// zurück – New Vegas stellte iMultiSample nach dem ersten Lauf wieder auf 8 (28.09.2026). Nur vorhandene Dateien;
+    /// die Sicherung von der Installation bleibt, „Rückgängig“ stellt also weiterhin den Ursprung her.
+    /// </summary>
+    /// <returns>Was geändert wurde (leer, wenn alles schon stimmt).</returns>
+    public IReadOnlyList<string> ReapplyIniTweaks(string gameDir, IEnumerable<UserIniTweak> tweaks)
+    {
+        var changes = new List<string>();
+        foreach (var t in tweaks)
+        {
+            var path = ResolvePath(gameDir, t.File);
+            if (!File.Exists(path))
+                continue;
+            var ini = IniFile.Load(path);
+            var old = ini.Get(t.Section, t.Key);
+            if (old == t.Value)
+                continue;
+            ini.Set(t.Section, t.Key, t.Value);
+            ini.Save(path);
+            changes.Add($"{Path.GetFileName(path)}: {t.Key} {old ?? "–"} → {t.Value} ({t.Reason})");
+        }
+        return changes;
     }
 
     /// <summary>

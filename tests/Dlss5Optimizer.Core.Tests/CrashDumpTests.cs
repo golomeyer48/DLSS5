@@ -216,6 +216,27 @@ public class CrashDumpTests
     }
 
     [Fact]
+    public void IniTweakIsReappliedAfterTheGameResetIt()
+    {
+        // New Vegas schrieb iMultiSample=8 beim Beenden zurück; vor dem nächsten Start kommt wieder 0 hinein.
+        using var t = new TempDir();
+        var docs = t.Dir("docs");
+        t.File("docs/My Games/FalloutNV/FalloutPrefs.ini", "[General]\r\nsLanguage=GERMAN\r\n[Display]\r\niMultiSample=8\r\nbFull Screen=1\r\n");
+        var installer = new Installer(resolveToken: token => token == "%DOCUMENTS%" ? docs : null);
+        var tweak = new UserIniTweak(@"%DOCUMENTS%\My Games\FalloutNV\FalloutPrefs.ini", "Display", "iMultiSample", "0", "MSAA aus");
+        var missing = new UserIniTweak(@"%DOCUMENTS%\My Games\Fallout3\FalloutPrefs.ini", "Display", "iMultiSample", "0", "MSAA aus");
+
+        var changes = installer.ReapplyIniTweaks(t.Dir("game"), [tweak, missing]);
+
+        Assert.Equal("FalloutPrefs.ini: iMultiSample 8 → 0 (MSAA aus)", Assert.Single(changes));
+        var ini = IniFile.Load(t.Combine("docs/My Games/FalloutNV/FalloutPrefs.ini"));
+        Assert.Equal("0", ini.Get("Display", "iMultiSample"));
+        Assert.Equal("1", ini.Get("Display", "bFull Screen"));
+        Assert.False(File.Exists(t.Combine("docs/My Games/Fallout3/FalloutPrefs.ini")));
+        Assert.Empty(installer.ReapplyIniTweaks(t.Dir("game"), [tweak]));
+    }
+
+    [Fact]
     public void DxvkIsPinnedToTheTestedRelease()
     {
         var dxvk = Components.ComponentCatalog.LoadEmbedded().Get(RouteCatalog.Ids.Dxvk)!;

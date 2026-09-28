@@ -396,6 +396,10 @@ public sealed partial class MainViewModel : ObservableObject
         var choice = LaunchChooser.Choose(g.Analysis, g.Installed);
         try
         {
+            // Spiele wie New Vegas schreiben ihre Einstellungen beim Beenden zurück (MSAA wieder an) – vor jedem Start neu setzen.
+            if (g.Installed is { } m && m.Config.Route != RouteId.NativeDlss5 && g.Analysis.GameDir is { } gameDir)
+                foreach (var change in _s.Installer.ReapplyIniTweaks(gameDir, g.Analysis.DbEntry?.UserIniTweaks ?? []))
+                    Log($"{g.Name}: {change} – das Spiel hatte die Einstellung zurückgesetzt.");
             GameLauncher.Launch(g.Analysis.Game, g.Analysis.MainExe, args, choice.Exe);
             Log($"{g.Name} gestartet{(choice.Exe is { } direct ? $" über {Path.GetFileName(direct)} ({choice.Reason})" : "")}{(args is null ? "" : " mit " + args)}. In eine typische Spielszene gehen, dann „Messen“.");
         }

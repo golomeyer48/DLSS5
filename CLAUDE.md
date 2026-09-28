@@ -87,6 +87,13 @@ Die App verlangt Adminrechte (app.manifest). Daten und Log: `%LOCALAPPDATA%\DLSS
 - **Fallout 3 läuft (bestätigt 28.09.2026, 18:16–19:35):** nach „Reparieren“ mit Feeder 1.17.0, RenoDX 6.5.3,
   DXVK 3.0.2 und „Spiel starten“ im Tool (Direktstart Fallout3ng.exe) – 223 200 Bilder in 4K mit DLSS 5, kein Absturz,
   ~47 fps (DLSS-GPU 17,4 ms/Bild). Der Feeder bleibt also auf der neuesten Fassung.
+- **Fallout: New Vegas läuft (28.09.2026, 19:49–20:05):** vorher Patcher-Reste aus dem Spielordner nach
+  `%LOCALAPPDATA%\DLSS5Optimizer\patcher-reste\Fallout New Vegas` verschoben (dgVoodoo-d3d9.dll, ReShade32 als dxgi.dll,
+  fremde ReShade.ini, host64 mit dem veränderten Modell 8270b350…). Dann Installation mit dem Tool, Direktstart
+  FalloutNV.exe: 39 600 Bilder mit DLSS 5, ~44–48 fps, kein Absturz. Das Spiel schrieb beim Beenden iMultiSample=8
+  zurück → `Installer.ReapplyIniTweaks` setzt die Spieleinstellungen vor jedem „Spiel starten“ neu.
+- **Idee:** Reste des DLSS 5 Patchers (Ordner `.dlss5_backup`) erkennen und wegräumen – laut Patcher-Log u. a. in
+  Cyberpunk, RDR2, Wolfenstein II, Skyrim SE, Watch Dogs, Resident Evil 2.
 - **Entschieden: A.** Das Tool lädt das Modell selbst aus rhi-repo, Release `dlssnr-310.8.0` (festes Tag, direkt
   abgefragt – `source.tag` in components.json, ebenso DXVK `v3.0.2`); angenommen nur mit der hinterlegten Prüfsumme.
   Import geht weiterhin.
