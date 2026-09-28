@@ -381,7 +381,7 @@ public class DlssModelTests
     }
 
     [Fact]
-    public void MissingModelIsNoLongerShownAsReadyButAsImport()
+    public void MissingModelIsDownloadedBeforeInstalling()
     {
         using var t = new TempDir();
         TestPe.Write(t.Combine("Fallout 3 goty/Fallout3.exe"), TestPe.I386, ["kernel32.dll", "d3d9.dll"], largeAddressAware: true);
@@ -391,18 +391,46 @@ public class DlssModelTests
 
         var rec = engine.Recommend(a, System5070Ti, new UserPreferences());
 
-        Assert.Null(rec.Best); // früher „Bereit“ – und dann „Es fehlen Komponenten: nvngx-dlssnr“
-        Assert.Equal(RouteId.LegacyDxvkFeeder, rec.BestWithImports?.Route.Id);
-        Assert.Contains(rec.BestWithImports!.Missing, m => m.Id == RouteCatalog.Ids.DlssNrModel && !m.CanAutoDownload);
-        Assert.Contains(rec.Notes, n => n.Contains("importieren"));
+        // Früher „Bereit“ und dann „Es fehlen Komponenten: nvngx-dlssnr“ – jetzt steht es als Download in der Liste.
+        Assert.Equal(RouteId.LegacyDxvkFeeder, rec.Best?.Route.Id);
+        Assert.Contains(rec.Best!.Missing, m => m.Id == RouteCatalog.Ids.DlssNrModel && m.CanAutoDownload);
+        Assert.DoesNotContain(rec.Notes, n => n.Contains("importieren"));
     }
 
     [Fact]
-    public void CatalogPinsTheSignedOriginal()
+    public void CatalogLoadsOnlyTheSignedOriginal()
     {
         var def = ComponentCatalog.LoadEmbedded().Get(RouteCatalog.Ids.DlssNrModel)!;
-        Assert.False(def.CanAutoDownload);
+        Assert.True(def.CanAutoDownload);
+        Assert.Equal("RankFTW/rhi-repo", def.Source.Repo);
+        Assert.Equal("dlssnr-310.8.0", def.Source.Tag);
         Assert.Contains("e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e", def.PinnedSha256["nvngx_dlssnr.dll"]);
+
+        // Die veränderten Builds liegen im selben Repository – das Muster darf keinen davon treffen.
+        var pattern = new System.Text.RegularExpressions.Regex(def.Source.AssetPattern!, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        Assert.Matches(pattern, "nvngx_dlssnr_310.8.0.zip");
+        foreach (var modified in new[] { "nvngx_dlssnr_310.8.Lecram.zip", "nvngx_dlssnr_310.8.SF.zip", "nvngx_dlssnr_310.8.SF-v2.zip", "nvngx_dlssnr_310.8.0-RTX40.zip" })
+            Assert.DoesNotMatch(pattern, modified);
+    }
+
+    [Fact]
+    public void FixedReleaseIsReadFromTheSingleReleaseResponse()
+    {
+        // Antwort von /releases/tags/dlssnr-310.8.0 (gekürzt): ein einzelnes Objekt, keine Liste.
+        const string json = """
+            { "tag_name": "dlssnr-310.8.0", "draft": false, "prerelease": false,
+              "assets": [ { "name": "nvngx_dlssnr_310.8.0.zip", "size": 109469696,
+                            "digest": "sha256:388c0a7912e15ec911b9c9e11a692142b11fe387ddf2b637d8c358138fffb3ac",
+                            "browser_download_url": "https://github.com/RankFTW/rhi-repo/releases/download/dlssnr-310.8.0/nvngx_dlssnr_310.8.0.zip" } ] }
+            """;
+        var def = ComponentCatalog.LoadEmbedded().Get(RouteCatalog.Ids.DlssNrModel)!;
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+        var asset = ComponentDownloader.SelectFromRelease(doc.RootElement,
+            new System.Text.RegularExpressions.Regex(def.Source.AssetPattern!), includePrerelease: true)!;
+
+        Assert.Equal("dlssnr-310.8.0", asset.Tag);
+        Assert.Equal("388c0a7912e15ec911b9c9e11a692142b11fe387ddf2b637d8c358138fffb3ac", asset.Sha256);
     }
 
     [Fact]

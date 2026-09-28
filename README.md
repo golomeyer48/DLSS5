@@ -219,7 +219,7 @@ Die Hebel, sortiert nach Wirkung:
 
 **Das Tool liefert keine fremden Dateien aus.**
 - Open-Source-Teile lädt es auf deinem PC direkt aus der Originalquelle, mit SHA-256-Prüfung, wo das Release einen Hash angibt.
-- Das DLSS-5-Modell importierst du selbst; angenommen wird nur NVIDIAs signierte Fassung 310.8.0 (siehe unten).
+- Das DLSS-5-Modell lädt es aus dem RHI-Repository; angenommen wird nur NVIDIAs signierte Fassung 310.8.0 (siehe unten).
 - Geschlossene Add-ons importierst du selbst.
 
 | Komponente | Lizenz | Beschaffung |
@@ -230,7 +230,7 @@ Die Hebel, sortiert nach Wirkung:
 | LumeniteFX | AGNYA (Rechte beim Autor) | direkt vom Repo des Autors |
 | dgVoodoo2 | Freeware | GitHub-Releases |
 | PresentMon | MIT | GitHub-Releases |
-| `nvngx_dlssnr.dll` 310.8.0 (DLSS-5-Modell) | NVIDIA, proprietär | **Import**; angenommen wird nur die von NVIDIA signierte Originaldatei, Prüfsumme fest hinterlegt (siehe unten) |
+| `nvngx_dlssnr.dll` 310.8.0 (DLSS-5-Modell) | NVIDIA, proprietär | RankFTW/rhi-repo, Release `dlssnr-310.8.0`, oder Import; angenommen wird nur die von NVIDIA signierte Originaldatei, Prüfsumme fest hinterlegt (siehe unten) |
 | `nvngx_dlss.dll` | NVIDIA DLSS SDK | aus einem installierten Spiel, sonst von github.com/NVIDIA/DLSS |
 | DXVK | zlib | GitHub-Releases |
 | d3d8to9 | BSD-2 | GitHub-Releases (crosire/d3d8to9) |
@@ -239,12 +239,14 @@ Die Hebel, sortiert nach Wirkung:
 | **Deep Fried Chicken** | Closed Source, Weitergabe untersagt | nur **Import** (Discord des Autors) |
 
 **Das DLSS-5-Modell** `nvngx_dlssnr.dll` liegt weder im NVIDIA-Treiber (Stand 617.14) noch im öffentlichen
-DLSS-SDK. Alle Community-Setups beziehen es aus dem RenoDX-Discord. Du importierst es im Reiter „Komponenten“,
-als DLL oder als ZIP. Angenommen wird **nur** die unveränderte, von NVIDIA signierte Fassung 310.8.0:
+DLSS-SDK. Das Tool lädt es aus dem RHI-Repository der RenoDX-Community (`RankFTW/rhi-repo`, Release
+`dlssnr-310.8.0` – dieselbe Quelle nutzt der Installer des DLSS5-Feeders). Importieren geht weiterhin im Reiter
+„Komponenten“, als DLL oder als ZIP. Angenommen wird **nur** die unveränderte, von NVIDIA signierte Fassung 310.8.0:
 - Signatur von NVIDIA Corporation (DigiCert-Kette)
 - SHA-256 der DLL: `e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e`, fest in `components.json` hinterlegt
 
-Jede andere Datei wird abgelehnt, ob importiert oder auf dem PC gefunden.
+Jede andere Datei wird abgelehnt, ob geladen, importiert oder auf dem PC gefunden. Die übrigen `dlssnr`-Releases
+im RHI-Repository sind veränderte Builds und werden nie geladen.
 
 Bewusst **nicht** unterstützt: veränderte Builds (310.8.Lecram, 310.8.SF, „RTX 20–40“-Builds). Auf einer
 RTX 50 sind sie nicht nötig.

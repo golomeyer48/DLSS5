@@ -34,7 +34,8 @@ Die App verlangt Adminrechte (app.manifest). Daten und Log: `%LOCALAPPDATA%\DLSS
   Originalquelle; Closed-Source-Teile nur per Import oder nach ausdrücklicher Warnung.
 - **DLSS-5-Modell:** `nvngx_dlssnr.dll` liegt weder im Treiber noch im öffentlichen SDK. Angenommen wird nur
   NVIDIAs signierte Fassung 310.8.0 (SHA-256 in `components.json` → `pinnedSha256`); veränderte Builds
-  (Lecram, SF, RTX40) werden abgelehnt. Derzeit nur Import – ob das Tool sie selbst lädt, entscheidet der Nutzer.
+  (Lecram, SF, RTX40) werden abgelehnt. Das Tool lädt sie selbst aus `RankFTW/rhi-repo`, Release `dlssnr-310.8.0`
+  (Entscheidung des Nutzers, 28.09.2026); Import geht weiterhin.
 - Jede Route außer „nativ“ muss das Modell als Voraussetzung führen (Test `EveryDlss5RouteNeedsTheModel`).
 - Neue Logik im Kern mit xUnit-Test; Windows-Teile im Selbsttest abdecken.
 - Oberfläche: Kontrast mindestens 4,5:1. Keine globale TextBlock-Farbe – Schrift erbt vom Steuerelement.
@@ -86,6 +87,6 @@ Die App verlangt Adminrechte (app.manifest). Daten und Log: `%LOCALAPPDATA%\DLSS
 - **Fallout 3 läuft (bestätigt 28.09.2026, 18:16–19:35):** nach „Reparieren“ mit Feeder 1.17.0, RenoDX 6.5.3,
   DXVK 3.0.2 und „Spiel starten“ im Tool (Direktstart Fallout3ng.exe) – 223 200 Bilder in 4K mit DLSS 5, kein Absturz,
   ~47 fps (DLSS-GPU 17,4 ms/Bild). Der Feeder bleibt also auf der neuesten Fassung.
-- **Offen:** Entscheidung A (Tool lädt das signierte Modell selbst aus rhi-repo `dlssnr-310.8.0`, Prüfsumme fest) oder
-  B (nur Import, aktueller Stand). Entscheidung A (Tool lädt das signierte Modell selbst) oder
-  B (nur Import, aktueller Stand).
+- **Entschieden: A.** Das Tool lädt das Modell selbst aus rhi-repo, Release `dlssnr-310.8.0` (festes Tag, direkt
+  abgefragt – `source.tag` in components.json, ebenso DXVK `v3.0.2`); angenommen nur mit der hinterlegten Prüfsumme.
+  Import geht weiterhin.

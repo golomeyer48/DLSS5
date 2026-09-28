@@ -24,6 +24,8 @@ public sealed record ComponentSource
     public string? AssetPattern { get; init; }
     /// <summary>Nur Releases, deren Tag passt (Repos mit mehreren Produkten, z. B. rhi-repo).</summary>
     public string? TagPattern { get; init; }
+    /// <summary>Genau dieses Release (wird direkt abgefragt – auch wenn es nicht mehr unter den neuesten 100 ist).</summary>
+    public string? Tag { get; init; }
     public bool IncludePrerelease { get; init; }
     public string? Url { get; init; }
     public string? FileName { get; init; }

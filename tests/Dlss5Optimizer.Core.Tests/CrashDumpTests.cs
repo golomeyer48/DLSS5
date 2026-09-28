@@ -219,8 +219,7 @@ public class CrashDumpTests
     public void DxvkIsPinnedToTheTestedRelease()
     {
         var dxvk = Components.ComponentCatalog.LoadEmbedded().Get(RouteCatalog.Ids.Dxvk)!;
-        Assert.Matches(dxvk.Source.TagPattern!, "v3.0.2");
-        Assert.DoesNotMatch(dxvk.Source.TagPattern!, "v3.1.1");
+        Assert.Equal("v3.0.2", dxvk.Source.Tag);
     }
 
     [Fact]

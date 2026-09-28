@@ -32,44 +32,61 @@ public sealed class ComponentDownloader(HttpClient http, ComponentStore store, C
         if (src.Type != ComponentSourceType.GitHub || src.Repo is null)
             throw new InvalidOperationException($"{def.Name} kann nicht automatisch geladen werden.");
 
-        using var resp = await http.GetAsync($"https://api.github.com/repos/{src.Repo}/releases?per_page=100", ct);
+        // Ein festes Release direkt abfragen: Die Liste enthält nur die neuesten 100 (rhi-repo wächst schnell).
+        var api = src.Tag is { } fixedTag
+            ? $"https://api.github.com/repos/{src.Repo}/releases/tags/{Uri.EscapeDataString(fixedTag)}"
+            : $"https://api.github.com/repos/{src.Repo}/releases?per_page=100";
+        using var resp = await http.GetAsync(api, ct);
         resp.EnsureSuccessStatusCode();
         await using var body = await resp.Content.ReadAsStreamAsync(ct);
         using var doc = await JsonDocument.ParseAsync(body, cancellationToken: ct);
-        var asset = SelectAsset(doc.RootElement, src.AssetPattern, src.IncludePrerelease, src.TagPattern);
+        var asset = src.Tag is not null
+            ? SelectFromRelease(doc.RootElement, AssetRegex(src.AssetPattern), includePrerelease: true)
+            : SelectAsset(doc.RootElement, src.AssetPattern, src.IncludePrerelease, src.TagPattern);
         return asset ?? throw new InvalidOperationException($"{def.Name}: Kein passendes Release in {src.Repo} gefunden.");
     }
 
     /// <summary>Wählt das neueste passende Asset (Entwürfe nie, Vorabversionen nur auf Wunsch).</summary>
     public static ReleaseAsset? SelectAsset(JsonElement releases, string? assetPattern, bool includePrerelease, string? tagPattern = null)
     {
-        var regex = new Regex(assetPattern ?? @"\.(zip|7z)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        var regex = AssetRegex(assetPattern);
         var tagRegex = tagPattern is null ? null : new Regex(tagPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         foreach (var rel in releases.EnumerateArray())
         {
-            if (rel.TryGetProperty("draft", out var d) && d.GetBoolean())
+            if (tagRegex is not null && !tagRegex.IsMatch(rel.GetProperty("tag_name").GetString() ?? "?"))
                 continue;
-            bool pre = rel.TryGetProperty("prerelease", out var p) && p.GetBoolean();
-            if (pre && !includePrerelease)
-                continue;
-            var tag = rel.GetProperty("tag_name").GetString() ?? "?";
-            if (tagRegex is not null && !tagRegex.IsMatch(tag))
-                continue;
-            if (!rel.TryGetProperty("assets", out var assets))
-                continue;
-            foreach (var a in assets.EnumerateArray())
-            {
-                var name = a.GetProperty("name").GetString() ?? "";
-                if (!regex.IsMatch(name))
-                    continue;
-                string? sha = null;
-                if (a.TryGetProperty("digest", out var dg) && dg.GetString() is { } digest && digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
-                    sha = digest["sha256:".Length..];
-                return new ReleaseAsset(tag, name, a.GetProperty("browser_download_url").GetString()!, a.TryGetProperty("size", out var s) ? s.GetInt64() : 0, sha, pre);
-            }
+            if (SelectFromRelease(rel, regex, includePrerelease) is { } asset)
+                return asset;
         }
         return null;
     }
+
+    /// <summary>Passendes Asset eines einzelnen Releases (Entwürfe nie, Vorabversionen nur auf Wunsch).</summary>
+    public static ReleaseAsset? SelectFromRelease(JsonElement rel, Regex assetRegex, bool includePrerelease)
+    {
+        if (rel.TryGetProperty("draft", out var d) && d.GetBoolean())
+            return null;
+        bool pre = rel.TryGetProperty("prerelease", out var p) && p.GetBoolean();
+        if (pre && !includePrerelease)
+            return null;
+        if (!rel.TryGetProperty("assets", out var assets))
+            return null;
+        var tag = rel.GetProperty("tag_name").GetString() ?? "?";
+        foreach (var a in assets.EnumerateArray())
+        {
+            var name = a.GetProperty("name").GetString() ?? "";
+            if (!assetRegex.IsMatch(name))
+                continue;
+            string? sha = null;
+            if (a.TryGetProperty("digest", out var dg) && dg.GetString() is { } digest && digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+                sha = digest["sha256:".Length..];
+            return new ReleaseAsset(tag, name, a.GetProperty("browser_download_url").GetString()!, a.TryGetProperty("size", out var s) ? s.GetInt64() : 0, sha, pre);
+        }
+        return null;
+    }
+
+    private static Regex AssetRegex(string? pattern) =>
+        new(pattern ?? @"\.(zip|7z)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     public async Task<StoredComponent> DownloadAsync(string id, IProgress<double>? progress = null, CancellationToken ct = default)
     {

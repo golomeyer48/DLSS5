@@ -98,7 +98,7 @@
       "description": "Übersetzt DirectX 8–11 nach Vulkan. Getesteter Weg für 32-Bit-DX9-Spiele wie Fallout 3 und New Vegas, in denen dgVoodoo scheitert.",
       "license": "zlib",
       "homepage": "https://github.com/doitsujin/dxvk",
-      "source": { "type": "GitHub", "repo": "doitsujin/dxvk", "tagPattern": "^v3\\.0\\.2$", "assetPattern": "^dxvk-[\\d.]+\\.tar\\.gz$" },
+      "source": { "type": "GitHub", "repo": "doitsujin/dxvk", "tag": "v3.0.2", "assetPattern": "^dxvk-[\\d.]+\\.tar\\.gz$" },
       "expectedFiles": [ "d3d9.dll" ],
       "notes": [ "Fest auf 3.0.2: damit sind Fallout 3 und die anderen DirectX-9-Klassiker in dlss5-classic-games bestätigt. Mit 3.1.1 stürzte Fallout 3 beim ersten Bild ab (28.09.2026)." ]
     },
@@ -133,17 +133,25 @@
     {
       "id": "nvngx-dlssnr",
       "name": "DLSS-5-Modell (nvngx_dlssnr.dll 310.8.0)",
-      "description": "NVIDIAs Neural-Rendering-Modell für RTX 50. Es liegt weder im Treiber noch im öffentlichen DLSS-SDK und muss importiert werden. Angenommen wird nur die unveränderte, von NVIDIA signierte Fassung 310.8.0 (Prüfsumme fest hinterlegt).",
+      "description": "NVIDIAs Neural-Rendering-Modell für RTX 50. Es liegt weder im Treiber noch im öffentlichen DLSS-SDK. Das Tool lädt es aus dem RHI-Repository (RenoDX) und nimmt nur die unveränderte, von NVIDIA signierte Fassung 310.8.0 an (Prüfsumme fest hinterlegt).",
       "license": "NVIDIA (proprietär)",
       "closedSource": true,
-      "source": { "type": "Import", "distribution": "Nicht automatisch ladbar – die signierte Fassung 310.8.0 selbst beschaffen (RenoDX-Discord) und hier importieren" },
+      "homepage": "https://github.com/RankFTW/rhi-repo/releases/tag/dlssnr-310.8.0",
+      "source": {
+        "type": "GitHub",
+        "repo": "RankFTW/rhi-repo",
+        "tag": "dlssnr-310.8.0",
+        "assetPattern": "^nvngx_dlssnr_310\\.8\\.0\\.zip$",
+        "distribution": "RHI-Repository (RenoDX), Release dlssnr-310.8.0 – dieselbe Quelle nutzt der Installer des DLSS5-Feeders"
+      },
       "expectedFiles": [ "nvngx_dlssnr.dll" ],
       "pinnedSha256": { "nvngx_dlssnr.dll": [ "e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e" ] },
       "knownModifiedSha256": {
         "8270b350cd82de5ce89806872cdd6b6a9249b80836b91bbeb3573470744cc206": "„DLSS 5 Patcher“ 1.2.1 (MRHRTZ), auch als nvngx.dll_dlssnr_rtx20.dll – nach NVIDIAs Signatur verändert (Signaturprüfung: HashMismatch)"
       },
       "notes": [
-        "Import: die DLL oder das ZIP (nvngx_dlssnr_310.8.0.zip) wählen.",
+        "Wird automatisch geladen (ZIP-Prüfsumme von GitHub und DLL-Prüfsumme werden geprüft). Import geht weiterhin: die DLL oder das ZIP (nvngx_dlssnr_310.8.0.zip) wählen.",
+        "Die übrigen dlssnr-Releases im RHI-Repository (Lecram, SF, SF-v2, RTX40) sind veränderte Builds und werden nie geladen.",
         "Angenommen wird nur genau die von NVIDIA signierte Datei 310.8.0 – veränderte Builds (310.8.Lecram, SF, RTX40) werden abgelehnt, auf einer RTX 50 sind sie nicht nötig.",
         "Auch die Datei aus dem „DLSS 5 Patcher“ (MRHRTZ) ist verändert und wird abgelehnt."
       ]
