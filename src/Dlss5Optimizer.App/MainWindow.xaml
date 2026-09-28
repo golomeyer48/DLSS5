@@ -200,6 +200,8 @@
                                 <Button Content="Rückgängig" Command="{Binding UninstallCommand}" />
                                 <Button Content="Reparieren" Command="{Binding RepairCommand}" ToolTip="Nach einem Spiel-Update erneut installieren" />
                                 <Button Content="Spiel starten" Command="{Binding LaunchGameCommand}" />
+                                <Button Content="Diagnose" Command="{Binding DiagnoseCommand}"
+                                        ToolTip="Nach dem Spielstart prüfen, ob Übersetzer, ReShade, Feeder und DLSS 5 wirklich laufen (Logs + Absturzprotokoll)." />
                                 <Button Content="Messen" Command="{Binding MeasureCommand}"
                                         ToolTip="Misst das laufende Spiel: tatsächliche API (geladene DLLs) und Bildrate (PresentMon). Erst ohne, dann mit DLSS 5 messen." />
                                 <TextBlock Text="DLSS-Modus im Spiel:" VerticalAlignment="Center" Margin="8,0,6,8" Style="{StaticResource Muted}" />

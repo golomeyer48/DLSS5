@@ -19,6 +19,7 @@ public sealed class PeFile
     private const int DirResource = 2;
     private const int DirDelayImport = 13;
     private const uint FixedFileInfoSignature = 0xFEEF04BD;
+    private const ushort LargeAddressAwareFlag = 0x0020;
 
     private readonly Section[] _sections;
 
@@ -27,6 +28,12 @@ public sealed class PeFile
     public IReadOnlyList<string> Imports { get; }
     public IReadOnlyList<string> DelayImports { get; }
     public Version? FileVersion { get; }
+
+    /// <summary>
+    /// 32-Bit-Programme ohne dieses Flag bekommen nur 2 GB Adressraum. Mit ReShade, DXVK und dem
+    /// Feeder im Prozess reicht das bei alten, gemoddeten Spielen oft nicht (4GB-Patch).
+    /// </summary>
+    public bool LargeAddressAware { get; private init; }
 
     /// <summary>Alle importierten DLL-Namen (statisch + verzögert), kleingeschrieben.</summary>
     public IEnumerable<string> AllImports => Imports.Concat(DelayImports);
@@ -85,6 +92,7 @@ public sealed class PeFile
         ushort machine = BinaryPrimitives.ReadUInt16LittleEndian(coff.AsSpan(4));
         ushort sectionCount = BinaryPrimitives.ReadUInt16LittleEndian(coff.AsSpan(6));
         ushort optSize = BinaryPrimitives.ReadUInt16LittleEndian(coff.AsSpan(20));
+        ushort characteristics = BinaryPrimitives.ReadUInt16LittleEndian(coff.AsSpan(22));
 
         var opt = ReadAt(s, peOffset + 24, optSize);
         ushort magic = BinaryPrimitives.ReadUInt16LittleEndian(opt);
@@ -133,7 +141,10 @@ public sealed class PeFile
         var imports = pe.ReadImports(s, Dir(DirImport).Rva);
         var delay = pe.ReadDelayImports(s, Dir(DirDelayImport).Rva);
         var version = pe.ReadFixedFileVersion(s, Dir(DirResource));
-        return new PeFile(bitness, imageBase, sections, imports, delay, version);
+        return new PeFile(bitness, imageBase, sections, imports, delay, version)
+        {
+            LargeAddressAware = (characteristics & LargeAddressAwareFlag) != 0,
+        };
     }
 
     private List<string> ReadImports(Stream s, uint rva)

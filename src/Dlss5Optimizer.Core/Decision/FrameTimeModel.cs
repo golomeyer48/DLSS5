@@ -33,11 +33,17 @@ public sealed class FrameTimeModel
 
     private readonly SystemInfo _system;
     private readonly Calibration? _calibration;
+    private readonly SrMode _assumedBaselineMode;
 
-    public FrameTimeModel(SystemInfo system, Calibration? calibration = null)
+    /// <param name="assumedBaselineMode">
+    /// Womit die angenommene Basis ohne Messung gerendert wird: DLSS Qualität bei Spielen mit DLSS,
+    /// nativ bei allen anderen.
+    /// </param>
+    public FrameTimeModel(SystemInfo system, Calibration? calibration = null, SrMode assumedBaselineMode = SrMode.Quality)
     {
         _system = system;
         _calibration = calibration;
+        _assumedBaselineMode = assumedBaselineMode;
     }
 
     public bool IsEstimate => _calibration is null;
@@ -73,7 +79,7 @@ public sealed class FrameTimeModel
     public double BaselineFrameTimeMs(SrMode mode, GraphicsApi api)
     {
         double baseFps = _calibration?.BaselineFps ?? AssumedBaselineFps;
-        var baseMode = _calibration?.BaselineSrMode ?? SrMode.Quality;
+        var baseMode = _calibration?.BaselineSrMode ?? _assumedBaselineMode;
         double tBase = 1000.0 / baseFps;
         double pixelRatio = Math.Pow(ScaleFactor(mode), 2) / Math.Pow(ScaleFactor(baseMode), 2);
         return tBase * (1 - GpuBoundFraction + GpuBoundFraction * pixelRatio);

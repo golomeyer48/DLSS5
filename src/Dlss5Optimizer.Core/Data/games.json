@@ -69,6 +69,63 @@
       "notes": [ "API im Grafikmenü umstellen (Erweiterte Einstellungen → Grafik-API). Red Dead Online nicht mit Mods starten." ]
     },
     {
+      "name": "Fallout 3",
+      "steamAppIds": [ "22300", "22370" ],
+      "exeNames": [ "Fallout3.exe" ],
+      "mainExe": "Fallout3.exe",
+      "apis": "D3D9",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "excludedRoutes": [ "LegacyFeeder" ],
+      "frameCapFps": 60,
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "1", "async_home": "0", "mv_scale_x": "1.000", "mv_scale_y": "1.000" },
+      "userIniTweaks": [
+        { "file": "%DOCUMENTS%\\My Games\\Fallout3\\FalloutPrefs.ini", "section": "Display", "key": "iMultiSample", "value": "0", "reason": "Kantenglättung (MSAA) aus – sonst sieht ReShade keinen Tiefenpuffer" }
+      ],
+      "launchExes": [ "fose_loader.exe" ],
+      "largeAddressHint": "Einen 4GB-Patcher für Fallout 3 verwenden (Nexus Mods). Die Steam-EXE nicht von Hand patchen.",
+      "notes": [
+        "Getesteter Weg (dlss5-classic-games): DXVK → ReShade-Vulkan-Layer → DLSS5-Feeder (32 Bit) → 64-Bit-Hilfsprozess mit RenoDX. dgVoodoo beendet das Spiel nach etwa einer Sekunde.",
+        "Die Engine ist auf 60 fps ausgelegt – DLSS 5 nutzt nur die Leistungsreserve darüber.",
+        "Das HUD und der Pip-Boy werden von DLSS 5 mitbearbeitet."
+      ]
+    },
+    {
+      "name": "Fallout: New Vegas",
+      "steamAppIds": [ "22380", "22490" ],
+      "exeNames": [ "FalloutNV.exe" ],
+      "mainExe": "FalloutNV.exe",
+      "apis": "D3D9",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "excludedRoutes": [ "LegacyFeeder" ],
+      "frameCapFps": 60,
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "1", "async_home": "0", "mv_scale_x": "1.000", "mv_scale_y": "1.000" },
+      "userIniTweaks": [
+        { "file": "%DOCUMENTS%\\My Games\\FalloutNV\\FalloutPrefs.ini", "section": "Display", "key": "iMultiSample", "value": "0", "reason": "Kantenglättung (MSAA) aus – sonst sieht ReShade keinen Tiefenpuffer" }
+      ],
+      "launchExes": [ "nvse_loader.exe" ],
+      "largeAddressHint": "„FNV 4GB Patcher“ (Nexus Mods) verwenden – er kommt mit der Steam-EXE zurecht. Die EXE nicht von Hand patchen.",
+      "notes": [
+        "dgVoodoo blockiert in New Vegas die Bildübergabe an den Feeder – deshalb DXVK, wie im Community-Mod „FNV-DLSS5“.",
+        "Tiefenpuffer-Einstellungen von Fallout 3 übernommen (gleiche Gamebryo-Engine).",
+        "Die Engine ist auf 60 fps ausgelegt – DLSS 5 nutzt nur die Leistungsreserve darüber.",
+        "Das HUD und der Pip-Boy werden von DLSS 5 mitbearbeitet."
+      ]
+    },
+    {
       "name": "DOOM Eternal",
       "steamAppIds": [ "782330" ],
       "exeNames": [ "DOOMEternalx64vk.exe" ],

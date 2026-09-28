@@ -25,11 +25,21 @@ public sealed class DecisionEngine
     {
         var notes = new List<string>();
         int target = prefs.EffectiveTargetFps(system.Display);
+        int? frameCap = game.DbEntry?.FrameCapFps;
+        if (frameCap is { } cap && cap < target)
+        {
+            // Mehr als die Engine erlaubt geht nicht – sonst würde die Auswahl Qualität für unerreichbare fps opfern.
+            target = cap;
+            notes.Add($"Die Engine begrenzt auf {cap} fps – das Ziel ist deshalb {cap} fps bei bestmöglicher Qualität.");
+        }
         var currentApi = game.Api.Primary;
         Calibration? Cal(GraphicsApi api) => calibrations?.GetValueOrDefault(api);
 
-        var baselineModel = new FrameTimeModel(system, Cal(currentApi));
-        var baseline = baselineModel.PredictBaseline(Cal(currentApi)?.BaselineSrMode ?? SrMode.Quality, currentApi);
+        var assumedMode = game.Upscalers.Has(UpscalerFeature.DlssSuperResolution) ? SrMode.Quality : SrMode.Native;
+        var baselineModel = new FrameTimeModel(system, Cal(currentApi), assumedMode);
+        var baseline = baselineModel.PredictBaseline(Cal(currentApi)?.BaselineSrMode ?? assumedMode, currentApi);
+        if (game.DbEntry?.FrameCapFps is { } baseCap && baseline.DisplayedFps > baseCap)
+            baseline = baseline with { RenderedFps = baseCap, DisplayedFps = baseCap };
 
         if (game.MainExe is null)
             return Blocked("Keine Spiel-EXE gefunden – Ordner manuell prüfen.");
@@ -47,7 +57,7 @@ public sealed class DecisionEngine
         var apis = game.Api.Supported == GraphicsApi.None ? currentApi : game.Api.Supported;
         foreach (var api in apis.Each())
         {
-            var model = new FrameTimeModel(system, Cal(api) ?? RebaseCalibration(Cal(currentApi), api));
+            var model = new FrameTimeModel(system, Cal(api) ?? RebaseCalibration(Cal(currentApi), api), assumedMode);
             foreach (var route in RouteCatalog.All)
             {
                 if (!IsEligible(route, api, game, prefs))
@@ -151,6 +161,8 @@ public sealed class DecisionEngine
             return game.HasNativeDlss5;
         if (game.HasNativeDlss5)
             return false; // nie einen Mod über natives DLSS 5 legen
+        if (game.DbEntry?.Excludes(route.Id.ToString()) == true)
+            return false; // in diesem Spiel nachweislich gescheitert
         if (!route.Apis.HasFlag(api))
             return false;
         if (route.Experimental && !prefs.AllowExperimental)
@@ -207,6 +219,11 @@ public sealed class DecisionEngine
                     reasons.Add("Für dieses Spiel empfohlen (Spiel-Datenbank)");
                 }
                 var prediction = model.Predict(route, config, game.Bitness, quality);
+                if (game.DbEntry?.FrameCapFps is { } fpsCap && prediction.RenderedFps > fpsCap)
+                {
+                    double shown = config.FrameGen == FrameGenMode.Off ? fpsCap : Math.Min(prediction.DisplayedFps, fpsCap * FrameTimeModel.FrameGenMultiplier(config.FrameGen));
+                    prediction = prediction with { RenderedFps = fpsCap, DisplayedFps = shown };
+                }
 
                 if (fg != FrameGenMode.Off && prediction.RenderedFps < FrameTimeModel.MinBaseFpsForFrameGen)
                     continue; // Frame Generation auf zu niedriger Basis: spürbare Verzögerung

@@ -6,7 +6,7 @@ namespace Dlss5Optimizer.Core.Detection;
 public static partial class ExecutableLocator
 {
     // Hilfsprogramme, die nie das Spiel selbst sind.
-    [GeneratedRegex(@"(unins\d*|uninstall|setup|install|redist|vc_?redist|dxsetup|dotnet|directx|crash|report|bugsplat|sentry|ue4prereq|ueprereq|prereq|easyanticheat|start_protected_game|beservice|battleye|eaanticheat|cefprocess|cefsharp|webhelper|quicksfv|touchup|cleanup|updater|patcher|activation|dxwebsetup|oalinst|physx|vcredist|register|config(urator|tool)?$|settings$|benchmark_tool)",
+    [GeneratedRegex(@"(unins\d*|uninstall|setup|install|redist|vc_?redist|dxsetup|dotnet|directx|crash|report|bugsplat|sentry|ue4prereq|ueprereq|prereq|easyanticheat|start_protected_game|beservice|battleye|eaanticheat|cefprocess|cefsharp|webhelper|quicksfv|touchup|cleanup|updater|patcher|activation|dxwebsetup|oalinst|physx|vcredist|register|config(urator|tool)?$|settings$|benchmark_tool|_backup$|\.bak$|_orig(inal)?$|^geck|creationkit|constructionset)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex HelperExe();
 

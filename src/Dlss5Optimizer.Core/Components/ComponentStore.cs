@@ -22,7 +22,10 @@ public sealed record StoredComponent(
 /// </summary>
 public sealed class ComponentStore(string root, ComponentCatalog catalog)
 {
-    private static readonly string[] ArchiveExtensions = [".zip", ".7z", ".rar", ".tar", ".gz", ".xz"];
+    private static readonly string[] ArchiveExtensions = [".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".xz", ".bz2"];
+
+    // Komprimierte Tar-Archive (dxvk-x.y.tar.gz) liest der Stream-Leser; alles andere das Archiv-API.
+    private static readonly string[] StreamArchiveExtensions = [".gz", ".tgz", ".xz", ".bz2"];
 
     public string Root => root;
 
@@ -123,7 +126,7 @@ public sealed class ComponentStore(string root, ComponentCatalog catalog)
         {
             var rel = Path.GetRelativePath(dir, p).ToLowerInvariant();
             bool is64 = rel.Contains("x64") || rel.Contains("win64") || rel.Contains("64bit") || rel.Contains("amd64");
-            bool is32 = rel.Contains("x86") || rel.Contains("win32") || rel.Contains("32bit");
+            bool is32 = rel.Contains("x86") || rel.Contains("x32") || rel.Contains("win32") || rel.Contains("32bit");
             if (prefer32Bit)
                 return is32 ? 0 : is64 ? 2 : 1;
             return is64 ? 0 : is32 ? 2 : 1;
@@ -172,6 +175,22 @@ public sealed class ComponentStore(string root, ComponentCatalog catalog)
     public static void ExtractArchive(string archivePath, string destination)
     {
         var root = Path.GetFullPath(destination);
+        if (StreamArchiveExtensions.Contains(Path.GetExtension(archivePath), StringComparer.OrdinalIgnoreCase))
+        {
+            using var fs = File.OpenRead(archivePath);
+            using var reader = ReaderFactory.OpenReader(fs, new ReaderOptions());
+            while (reader.MoveToNextEntry())
+            {
+                if (reader.Entry.IsDirectory || reader.Entry.Key is null)
+                    continue;
+                var target = SafeTarget(root, reader.Entry.Key);
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                using var outFs = File.Create(target);
+                reader.WriteEntryTo(outFs);
+            }
+            return;
+        }
+
         using var archive = ArchiveFactory.OpenArchive(archivePath, new ReaderOptions());
         foreach (var entry in archive.Entries.Where(e => !e.IsDirectory && e.Key is not null))
         {

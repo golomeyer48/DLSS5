@@ -41,7 +41,9 @@ public sealed class AppServices
         Downloader = new ComponentDownloader(ComponentDownloader.CreateHttpClient(), Store, Catalog);
         Database = GameDatabase.LoadWithOverride(Path.Combine(DataDir, "games.json"));
         Analyzer = new GameAnalyzer(Database);
-        Installer = new Installer(VulkanLayer.Register);
+        Installer = new Installer(VulkanLayer.Register, token => token.Equals("%DOCUMENTS%", StringComparison.OrdinalIgnoreCase)
+            ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+            : null);
         Availability = new ComponentAvailability(Catalog, Store, DlssNrModel, DlssRuntime);
         Planner = new RoutePlanner(Availability, Store);
         System = WindowsSystem.Read();

@@ -124,9 +124,18 @@ public sealed class GameAnalyzer(GameDatabase db)
         var mods = DetectMods(files, exeDir, evidence, warnings);
         if (mods.HasFlag(ExistingMod.Dxvk))
         {
-            // DXVK übersetzt D3D8-11 nach Vulkan – für die Brücke zählt die tatsächliche API.
-            Add(GraphicsApi.Vulkan, 0.6);
-            warnings.Add("DXVK ist installiert: Das Spiel läuft effektiv über Vulkan. Für die DX12-/DX11-Routen DXVK entfernen.");
+            bool legacy = scores.GetValueOrDefault(GraphicsApi.D3D9) >= 0.8 || scores.GetValueOrDefault(GraphicsApi.D3D8) >= 0.8;
+            if (legacy)
+            {
+                // Für DX8/9 bringt die DXVK-Route ihre eigene, getestete DXVK-Version mit.
+                warnings.Add("DXVK ist bereits installiert. Die DXVK-Route ersetzt es durch die geprüfte Version (gesichert, „Rückgängig“ stellt es wieder her).");
+            }
+            else
+            {
+                // DXVK übersetzt D3D10/11 nach Vulkan – für die Brücke zählt die tatsächliche API.
+                Add(GraphicsApi.Vulkan, 0.6);
+                warnings.Add("DXVK ist installiert: Das Spiel läuft effektiv über Vulkan. Für die DX12-/DX11-Routen DXVK entfernen.");
+            }
         }
 
         if (dbEntry is not null)
@@ -149,7 +158,14 @@ public sealed class GameAnalyzer(GameDatabase db)
         if (antiCheat.Detected)
             evidence.Add($"Anti-Cheat: {string.Join(", ", antiCheat.Systems)}");
         if (bitness == Bitness.X86)
+        {
             warnings.Add("32-Bit-Spiel: DLSS läuft nur als 64-Bit-Code, es wird ein Hilfsprozess gebraucht (etwas mehr Overhead).");
+            if (pe is { LargeAddressAware: false })
+                warnings.Add("Die EXE nutzt nur 2 GB Speicher (kein Large-Address-Aware). Mit ReShade, DXVK und dem Feeder drohen Speicherabstürze. "
+                             + (dbEntry?.LargeAddressHint ?? "Einen 4GB-Patch für dieses Spiel verwenden."));
+            else if (pe is { LargeAddressAware: true })
+                evidence.Add("Large-Address-Aware: ja (4 GB Adressraum)");
+        }
         if (dbEntry is not null)
             warnings.AddRange(dbEntry.Notes);
 
@@ -310,6 +326,13 @@ public sealed class GameAnalyzer(GameDatabase db)
             m |= ExistingMod.REFramework;
         if (files.HasDirectory(".dlss5-optimizer"))
             m |= ExistingMod.Dlss5Optimizer;
+        var d3d9 = Path.Combine(exeDir, "d3d9.dll");
+        if (files.HasFile("enbseries.ini") || files.HasFile("enblocal.ini")
+            || File.Exists(d3d9) && BinaryStringScanner.FindAny(d3d9, ["ENBSeries", "enbseries"], 64L * 1024 * 1024).Count > 0)
+        {
+            m |= ExistingMod.Enb;
+            warnings.Add("ENBSeries gefunden. ENB und die DLSS-5-Wege für DirectX 9 brauchen beide die d3d9.dll – ENB wird bei der Installation gesichert und deaktiviert, „Rückgängig“ stellt es wieder her.");
+        }
 
         foreach (var addon in files.Names.Where(n => n.EndsWith(".addon64", StringComparison.OrdinalIgnoreCase) || n.EndsWith(".addon32", StringComparison.OrdinalIgnoreCase)))
         {

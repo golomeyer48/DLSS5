@@ -11,6 +11,7 @@ public enum RouteId
     BridgeVulkan,
     Feeder,
     LegacyFeeder,
+    LegacyDxvkFeeder,
 }
 
 /// <summary>Woher die Bewegungsvektoren kommen – der wichtigste Qualitätsfaktor für DLSS 5.</summary>

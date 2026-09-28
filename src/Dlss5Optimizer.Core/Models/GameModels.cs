@@ -63,6 +63,7 @@ public enum ExistingMod
     DeepFriedChicken = 1 << 8,
     REFramework = 1 << 9,
     Dlss5Optimizer = 1 << 10,
+    Enb = 1 << 11,
 }
 
 public sealed record AntiCheatInfo(IReadOnlyList<string> Systems)

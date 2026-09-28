@@ -8,6 +8,12 @@ namespace Dlss5Optimizer.Core.Models;
 public sealed record ApiExeVariant(GraphicsApi Api, string Exe);
 
 /// <summary>
+/// Änderung an einer Einstellungsdatei außerhalb des Spielordners. <see cref="File"/> beginnt mit
+/// einem Platzhalter wie <c>%DOCUMENTS%</c>. Wird nur geändert, wenn die Datei schon existiert.
+/// </summary>
+public sealed record UserIniTweak(string File, string Section, string Key, string Value, string Reason);
+
+/// <summary>
 /// Wissen über einzelne Spiele, das sich nicht zuverlässig aus Dateien ablesen lässt.
 /// Wird als JSON ausgeliefert und kann ohne neuen Build aktualisiert werden.
 /// </summary>
@@ -24,7 +30,30 @@ public sealed record GameDbEntry
     public ApiExeVariant[] ApiExeVariants { get; init; } = [];
     public string? MainExe { get; init; }
     public string? PreferredRoute { get; init; }
+
+    /// <summary>Routen, die in diesem Spiel nachweislich scheitern (z. B. dgVoodoo in Fallout 3/NV).</summary>
+    public string[] ExcludedRoutes { get; init; } = [];
+
+    /// <summary>Feste Bildratenbegrenzung der Engine (Gamebryo-Physik läuft nur bis 60 fps sauber).</summary>
+    public int? FrameCapFps { get; init; }
+
+    /// <summary>ReShade-Präprozessor-Definitionen (Tiefenpuffer), getestet für dieses Spiel.</summary>
+    public string[] ReShadeDefines { get; init; } = [];
+
+    /// <summary>Zusätzliche Schlüssel für dlss5-feed.cfg aus einer getesteten Konfiguration.</summary>
+    public Dictionary<string, string> FeedConfig { get; init; } = [];
+
+    public UserIniTweak[] UserIniTweaks { get; init; } = [];
+
+    /// <summary>Starter, die bevorzugt werden, wenn vorhanden (Script Extender wie nvse_loader.exe).</summary>
+    public string[] LaunchExes { get; init; } = [];
+
+    /// <summary>Hinweis für 32-Bit-Spiele ohne Large-Address-Aware-Flag (welcher 4GB-Patch passt).</summary>
+    public string? LargeAddressHint { get; init; }
+
     public string[] Notes { get; init; } = [];
+
+    public bool Excludes(string routeId) => ExcludedRoutes.Any(r => r.Equals(routeId, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Anti-Cheat nur im Online-Modus; Offline-Start ist bekannt und dokumentiert.</summary>
     public bool AntiCheatOfflineBypass { get; init; }

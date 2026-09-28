@@ -42,6 +42,7 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
                 break;
             case RouteId.Feeder:
             case RouteId.LegacyFeeder:
+            case RouteId.LegacyDxvkFeeder:
                 PlanFeeder(ctx);
                 break;
         }
@@ -101,15 +102,14 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
     private void PlanReShadeConsumer(Context c)
     {
         var route = c.Candidate.Route.Id;
-        bool pre = c.Config.Placement == NrPlacement.PreUpscale;
-        var consumer = ChooseConsumer(pre);
+        var consumer = ChooseConsumer();
 
         if (route == RouteId.BridgeVulkan)
-            PlanReShadeVulkan(c);
+            PlanReShadeVulkan(c, is32: false);
         else
             PlanReShadeDll(c, c.Game.Bitness == Bitness.X86 ? "ReShade32.dll" : "ReShade64.dll", "dxgi.dll");
 
-        PlanConsumer(c, consumer, "", pre);
+        PlanConsumer(c, consumer, "", hostProcess: false);
         CopyModel(c, "");
 
         bool renoDxBridgesItself = consumer == Ids.RenoDx && RenoDxMajor() is null or >= 8;
@@ -130,19 +130,42 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
     private void PlanFeeder(Context c)
     {
         bool is32 = c.Game.Bitness == Bitness.X86;
-        var consumer = ChooseConsumer(needsPreUpscale: false);
+        var route = c.Candidate.Route.Id;
+        // Über DXVK wird aus DX9 Vulkan: ReShade kommt dann als Vulkan-Layer, nicht als DLL im Spielordner.
+        bool viaLayer = c.Config.Api == GraphicsApi.Vulkan || route == RouteId.LegacyDxvkFeeder;
+        // Deep Fried Chicken ist auf 32-Bit-Vulkan ungetestet – dort nur RenoDX (so auch in allen Referenzen).
+        var consumer = route == RouteId.LegacyDxvkFeeder || viaLayer && is32 ? Ids.RenoDx : ChooseConsumer();
 
-        if (c.Candidate.Route.Id == RouteId.LegacyFeeder)
+        if (route == RouteId.LegacyFeeder)
             PlanDgVoodoo(c, is32);
+        if (route == RouteId.LegacyDxvkFeeder)
+            PlanDxvk(c, is32);
 
-        if (c.Config.Api == GraphicsApi.Vulkan)
-            PlanReShadeVulkan(c);
+        if (viaLayer)
+        {
+            PlanReShadeVulkan(c, is32);
+            // Ein ReShade-Proxy (dxgi.dll) würde ReShade ein zweites Mal laden.
+            if (File.Exists(Path.Combine(c.GameDir, "dxgi.dll")))
+                c.Steps.Add(new RemoveFileStep("dxgi.dll", "ReShade-Proxy dxgi.dll entfernen (ReShade läuft jetzt als Vulkan-Layer)"));
+            // Über den Layer lädt ReShade früh geladene 32-Bit-Add-ons, bevor seine Laufzeit steht –
+            // das Add-on meldet dann „No add-on was registered“ und wird entladen (Fallout 3).
+            if (is32)
+                c.Ini("ReShade.ini", "ADDON", "LoadFromDllMain", "", "Kein frühes Laden über den Vulkan-Layer (sonst registriert sich das Feeder-Add-on nicht)");
+        }
         else
+        {
             PlanReShadeDll(c, is32 ? "ReShade32.dll" : "ReShade64.dll", c.Config.Api == GraphicsApi.OpenGL ? "opengl32.dll" : "dxgi.dll");
+        }
 
         var feedAddon = is32 ? "dlss5-feed.addon32" : "dlss5-feed.addon64";
         c.Copy(Ids.Feeder, feedAddon, feedAddon, "DLSS5-Feeder (ReShade-Add-on)", prefer32Bit: is32);
         c.Copy(Ids.Feeder, "DLSS5_Feed.fx", Path.Combine("reshade-shaders", "Shaders", "DLSS5_Feed.fx"), "Feeder-Shader");
+
+        // DLSS5_Feed.fx und LumeniteFX binden ReShade.fxh ein – ohne die Header kompiliert nichts.
+        foreach (var header in new[] { "ReShade.fxh", "ReShadeUI.fxh" })
+            c.Copy(Ids.ReShadeHeaders, header, Path.Combine("reshade-shaders", "Shaders", header), $"ReShade-Header {header}");
+        if (store.FindFile(Ids.ReShadeHeaders, "DrawText.fxh") is { } drawText)
+            c.Steps.Add(new CopyFileStep(drawText, Path.Combine("reshade-shaders", "Shaders", "DrawText.fxh"), "ReShade-Header DrawText.fxh"));
 
         // LumeniteFX: alle Shader inkl. include\ und die Blue-Noise-Textur.
         var lumeniteShaders = PackageRoot(c, Ids.LumeniteFx, "lumenite_Kernel.fx");
@@ -156,12 +179,8 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         }
 
         WritePreset(c);
-
-        if (c.Config.NrScale < 1.0 && c.Config.Api == GraphicsApi.D3D11)
-        {
-            c.Ini("dlss5-feed.cfg", "", "work_resolution", ((int)Math.Round(c.Config.NrScale * 100)).ToString(CultureInfo.InvariantCulture), $"Arbeitsauflösung {c.Config.NrScale:P0}");
-            c.Ini("dlss5-feed.cfg", "", "work_upscale", "1", "Hochskalierung mit FSR 1");
-        }
+        WriteReShadeDefines(c);
+        WriteFeedConfig(c);
 
         // DLSS/NGX gibt es nur als 64-Bit-Code: 32-Bit-Spiele bekommen einen 64-Bit-Hilfsprozess in host64\.
         var consumerDir = is32 ? "host64" : "";
@@ -171,13 +190,89 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
             c.Copy(Ids.ReShade, "ReShade64.dll", Path.Combine("host64", "dxgi.dll"), "ReShade 64 Bit für den Hilfsprozess");
             c.Steps.Add(new WriteTextStep(Path.Combine("host64", "ReShade.ini"), "[GENERAL]\r\nEffectSearchPaths=.\\\r\nTextureSearchPaths=.\\\r\n", "ReShade.ini für den Hilfsprozess"));
         }
-        PlanConsumer(c, consumer, consumerDir, preUpscale: false);
+        PlanConsumer(c, consumer, consumerDir, hostProcess: is32);
         CopyModel(c, consumerDir);
         c.CopyResolved(Ids.DlssRuntime, "nvngx_dlss.dll", Path.Combine(consumerDir, "nvngx_dlss.dll"), "DLSS-Laufzeit (DLAA)");
 
+        ApplyUserIniTweaks(c);
+        if (c.Game.Mods.HasFlag(ExistingMod.Enb) && route is RouteId.LegacyDxvkFeeder or RouteId.LegacyFeeder)
+            c.Hints.Add("ENB wurde deaktiviert (seine d3d9.dll ist gesichert). „Rückgängig“ stellt ENB wieder her.");
+
         c.Hints.Add("ReShade-Menü: Pos1-Taste. Lumenite_Kernel muss aktiv sein und über DLSS5_Feed stehen.");
-        if (c.Config.Api == GraphicsApi.Vulkan)
+        if (is32)
+            c.Hints.Add("Der DLSS-5-Regler liegt im Hilfsprozess: ReShade-Menü → Add-ons → DLSS 5 Feed → „Show the DLSS 5 panel in-game“.");
+        if (viaLayer)
             c.Hints.Add("NVIDIA Smooth Motion für dieses Spiel ausschalten – mit dem Feeder unter Vulkan unverträglich.");
+    }
+
+    /// <summary>DXVK als d3d9.dll (32 oder 64 Bit) – ersetzt dabei ENB, ein älteres DXVK oder dgVoodoo (gesichert).</summary>
+    private void PlanDxvk(Context c, bool is32)
+    {
+        var arch = is32 ? "x32" : "x64";
+        var dir = store.FilesDir(Ids.Dxvk);
+        var src = Directory.Exists(dir)
+            ? Directory.EnumerateFiles(dir, "d3d9.dll", new EnumerationOptions { RecurseSubdirectories = true, MatchCasing = MatchCasing.CaseInsensitive })
+                .FirstOrDefault(p => p.Replace('\\', '/').Contains($"/{arch}/", StringComparison.OrdinalIgnoreCase))
+            : null;
+        if (src is null)
+        {
+            c.Missing.Add(Ids.Dxvk);
+            return;
+        }
+        c.Steps.Add(new CopyFileStep(src, "d3d9.dll", $"DXVK ({arch}) als d3d9.dll – DirectX 9 → Vulkan"));
+        if (File.Exists(Path.Combine(c.GameDir, "dgVoodoo.conf")))
+            c.Hints.Add("dgVoodoo war installiert – seine D3D9.dll wurde durch DXVK ersetzt (gesichert).");
+        // DXVK schreibt Logs und Shader-Caches neben die EXE.
+        c.Cleanup.AddRange(["*_d3d9.log", "*_dxgi.log", "*.dxvk-cache"]);
+    }
+
+    /// <summary>
+    /// Pflichtwerte für dlss5-feed.cfg (ohne mode=2 läuft nur ein Transporttest, reset/rebuild-Werte
+    /// ungleich 0 beenden das Neural Rendering) plus getestete Werte aus der Spiel-Datenbank.
+    /// </summary>
+    private static void WriteFeedConfig(Context c)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["enabled"] = "1",
+            ["mode"] = "2",
+            ["reset_every"] = "0",
+            ["warmup_rebuild"] = "0",
+            ["rebuild"] = "0",
+        };
+        foreach (var (key, value) in c.Game.DbEntry?.FeedConfig ?? [])
+            values[key] = value;
+        if (c.Config.NrScale < 1.0 && c.Config.Api == GraphicsApi.D3D11)
+        {
+            values["work_resolution"] = ((int)Math.Round(c.Config.NrScale * 100)).ToString(CultureInfo.InvariantCulture);
+            values["work_upscale"] = "1";
+        }
+        foreach (var (key, value) in values)
+            c.Ini("dlss5-feed.cfg", "", key, value, $"{key}={value}");
+    }
+
+    /// <summary>Getestete Tiefenpuffer-Einstellungen des Spiels in ReShade.ini [GENERAL] einmischen.</summary>
+    private static void WriteReShadeDefines(Context c)
+    {
+        var defines = c.Game.DbEntry?.ReShadeDefines ?? [];
+        if (defines.Length == 0)
+            return;
+        var existing = IniFile.Load(Path.Combine(c.GameDir, "ReShade.ini")).Get("GENERAL", "PreprocessorDefinitions") ?? "";
+        string Key(string d) => d.Split('=')[0].Trim();
+        var merged = existing.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Where(d => !defines.Any(n => Key(n).Equals(Key(d), StringComparison.OrdinalIgnoreCase)))
+            .Concat(defines);
+        c.Ini("ReShade.ini", "GENERAL", "PreprocessorDefinitions", string.Join(",", merged), "Tiefenpuffer-Einstellungen für dieses Spiel");
+    }
+
+    /// <summary>Einstellungsdateien des Spiels (z. B. MSAA aus); nur wenn die Datei schon existiert.</summary>
+    private static void ApplyUserIniTweaks(Context c)
+    {
+        foreach (var t in c.Game.DbEntry?.UserIniTweaks ?? [])
+        {
+            c.Steps.Add(new IniSetStep(t.File, t.Section, t.Key, t.Value, $"{Path.GetFileName(t.File.Replace('\\', '/'))}: {t.Reason}", OnlyIfExists: true));
+            c.Hints.Add($"{t.Reason}. Falls die Einstellung nicht übernommen wurde (Datei fehlte): Spiel einmal über den Launcher starten und „Reparieren“ klicken.");
+        }
     }
 
     private void PlanDgVoodoo(Context c, bool is32)
@@ -207,6 +302,7 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         c.Ini("dgVoodoo.conf", "DirectX", "DisableAndPassThru", "false", "dgVoodoo aktiv lassen");
         c.Ini("dgVoodoo.conf", "DirectX", "dgVoodooWatermark", "false", "Wasserzeichen aus (DLSS 5 würde es mitbearbeiten)");
         c.Ini("dgVoodoo.conf", "DirectX", "VideoCard", "internal3D", "Virtuelle Grafikkarte");
+        // 1 GB wie im Feeder-Handbuch: mehr verwirrt manche alten Engines, weniger (Standard 256 MB) führt zu Abstürzen.
         c.Ini("dgVoodoo.conf", "DirectX", "VRAM", "1024", "Videospeicher für alte Spiele");
     }
 
@@ -216,15 +312,16 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         ReShadeIni(c);
     }
 
-    private void PlanReShadeVulkan(Context c)
+    private void PlanReShadeVulkan(Context c, bool is32)
     {
-        var json = store.FindFile(Ids.ReShade, "ReShade64.json");
-        if (json is null || store.FindFile(Ids.ReShade, "ReShade64.dll") is null)
+        var bits = is32 ? "32" : "64";
+        var json = store.FindFile(Ids.ReShade, $"ReShade{bits}.json");
+        if (json is null || store.FindFile(Ids.ReShade, $"ReShade{bits}.dll") is null)
         {
-            c.Missing.Add("ReShade (Vulkan-Layer)");
+            c.Missing.Add($"ReShade (Vulkan-Layer, {bits} Bit)");
             return;
         }
-        c.Steps.Add(new RegisterVulkanLayerStep(json, "ReShade als Vulkan-Layer für den aktuellen Nutzer registrieren"));
+        c.Steps.Add(new RegisterVulkanLayerStep(json, $"ReShade als Vulkan-Layer registrieren ({bits} Bit)", is32));
         ReShadeIni(c);
         c.Hints.Add("Der ReShade-Vulkan-Layer greift nur in Spielen mit ReShade.ini neben der EXE.");
     }
@@ -238,7 +335,8 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         c.Cleanup.AddRange(["ReShade.log", "ReShade64.log", "ReShade32.log", "ReShadePreset.ini", "reshade-shaders"]);
     }
 
-    private void PlanConsumer(Context c, string consumer, string dir, bool preUpscale)
+    /// <param name="hostProcess">Add-on läuft im 64-Bit-Hilfsprozess eines 32-Bit-Spiels.</param>
+    private void PlanConsumer(Context c, string consumer, string dir, bool hostProcess)
     {
         if (consumer == Ids.RenoDx)
         {
@@ -252,7 +350,13 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
             var ini = Path.Combine(dir, "ReShade.ini");
             c.Ini(ini, "RenoDX.DLSS5", "NeuralUplift", "1", "Neural Rendering an");
             c.Ini(ini, "RenoDX.DLSS5", "NREnableUpscaling", "0", "Upscaling bleibt beim Spiel");
-            c.Ini(ini, "RenoDX.DLSS5", "NRHookPoint", preUpscale ? "1" : "0", preUpscale ? "DLSS 5 vor dem Hochskalieren" : "DLSS 5 nach dem Hochskalieren");
+            if (hostProcess)
+            {
+                // Werte der getesteten 32-Bit-Aufbauten: nur NGX-Hooks, NRStyle=0 (NRStyle=2 ergibt ein schwarzes Bild).
+                c.Ini(ini, "RenoDX.DLSS5", "EnableHooks", "2", "Nur NGX-Hooks (der Feeder liefert die DLSS-Aufrufe)");
+                c.Ini(ini, "RenoDX.DLSS5", "NRStyle", "0", "NRStyle=0 – mit 2 bleibt das Bild bei 32-Bit-Spielen schwarz");
+                c.Ini(ini, "ADDON", "LoadFromDllMain", "renodx-dlss5.addon64", "Add-on im Hilfsprozess früh laden");
+            }
         }
         else
         {
@@ -312,13 +416,10 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         c.CopyResolved(Ids.DlssNrModel, SystemFileLocator.DlssNrFile, Path.Combine(dir, SystemFileLocator.DlssNrFile), "DLSS-5-Modell (aus dem NVIDIA-Treiber)");
 
     /// <summary>
-    /// Bei Pre-Upscale muss es RenoDX sein (NRHookPoint). Sonst Deep Fried Chicken, wenn der Nutzer
-    /// es importiert hat (vom Feeder-Autor empfohlen), ansonsten RenoDX.
+    /// Deep Fried Chicken, wenn der Nutzer es importiert hat (vom Feeder-Autor empfohlen), sonst RenoDX.
     /// </summary>
-    private string ChooseConsumer(bool needsPreUpscale)
+    private string ChooseConsumer()
     {
-        if (needsPreUpscale)
-            return Ids.RenoDx;
         if (components.IsAvailable(Ids.DeepFriedChicken))
             return Ids.DeepFriedChicken;
         return Ids.RenoDx;

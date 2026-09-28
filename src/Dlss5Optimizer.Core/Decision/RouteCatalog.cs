@@ -19,6 +19,8 @@ public static class RouteCatalog
         public const string RenoDx = "renodx-dlss5";
         public const string DeepFriedChicken = "deep-fried-chicken";
         public const string DgVoodoo = "dgvoodoo2";
+        public const string Dxvk = "dxvk";
+        public const string ReShadeHeaders = "reshade-headers";
         public const string DlssNrModel = "nvngx-dlssnr";
         public const string DlssRuntime = "nvngx-dlss";
         public const string PresentMon = "presentmon";
@@ -57,9 +59,7 @@ public static class RouteCatalog
             Requires64Bit: true, RequiresGameDlss: true, AcceptsFsrOrXess: false,
             MotionVectors: MotionVectorSource.Engine, OverheadMs: 0.2, SupportsSuperResolution: true,
             Components: [ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"), NeuralConsumer],
-            Caveats: ["Closed-Source-Add-on aus der Community; Herkunft ungeprüft."],
-            PreUpscaleComponent: Ids.RenoDx,
-            PreUpscaleLabel: "RenoDX DLSS 5 Add-on (NRHookPoint)"),
+            Caveats: ["Closed-Source-Add-on aus der Community; Herkunft ungeprüft."]),
 
         new(RouteId.BridgeD3D11, "dlss5-bridge (DirectX 11)",
             "Kopiert Farbe, Tiefe und Bewegungsvektoren der DLSS-Auswertung in ein privates D3D12-Gerät und zurück.",
@@ -89,6 +89,7 @@ public static class RouteCatalog
                 ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"),
                 ComponentRequirement.One(Ids.Feeder, "DLSS5-Feeder"),
                 ComponentRequirement.One(Ids.LumeniteFx, "LumeniteFX (Bewegungsvektoren)"),
+                ComponentRequirement.One(Ids.ReShadeHeaders, "ReShade-Shader-Header"),
                 ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
                 NeuralConsumer,
             ],
@@ -108,11 +109,35 @@ public static class RouteCatalog
                 ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"),
                 ComponentRequirement.One(Ids.Feeder, "DLSS5-Feeder"),
                 ComponentRequirement.One(Ids.LumeniteFx, "LumeniteFX (Bewegungsvektoren)"),
+                ComponentRequirement.One(Ids.ReShadeHeaders, "ReShade-Shader-Header"),
                 ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
                 NeuralConsumer,
             ],
-            Caveats: ["Alte Spiele laufen oft mit fester Bildrate – DLSS 5 kostet dann nur Leistungsreserve."],
+            Caveats: ["Alte Spiele laufen oft mit fester Bildrate – DLSS 5 kostet dann nur Leistungsreserve.", "dgVoodoo scheitert in manchen Engines (z. B. Gamebryo: Fallout 3/New Vegas) – dort die DXVK-Route nehmen."],
             Experimental: true),
+
+        new(RouteId.LegacyDxvkFeeder, "DXVK + DLSS5-Feeder (DirectX 9)",
+            "DXVK übersetzt DirectX 9 nach Vulkan, ReShade läuft als Vulkan-Layer, der Feeder schickt Bild und Tiefe an einen 64-Bit-Hilfsprozess mit DLSS 5.",
+            Apis: GraphicsApi.D3D9,
+            Requires64Bit: false, RequiresGameDlss: false, AcceptsFsrOrXess: false,
+            MotionVectors: MotionVectorSource.Estimated, OverheadMs: 1.4, SupportsSuperResolution: false,
+            Components:
+            [
+                ComponentRequirement.One(Ids.Dxvk, "DXVK"),
+                ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"),
+                ComponentRequirement.One(Ids.Feeder, "DLSS5-Feeder"),
+                ComponentRequirement.One(Ids.LumeniteFx, "LumeniteFX (Bewegungsvektoren)"),
+                ComponentRequirement.One(Ids.ReShadeHeaders, "ReShade-Shader-Header"),
+                ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
+                // Deep Fried Chicken ist auf 32-Bit-Vulkan (DXVK) laut Feeder-Doku ungetestet.
+                ComponentRequirement.One(Ids.RenoDx, "RenoDX DLSS 5 Add-on"),
+            ],
+            Caveats:
+            [
+                "Geschätzte Bewegungsvektoren: Schlieren bei schneller Bewegung möglich; das HUD wird mitbearbeitet.",
+                "ReShade wird als Vulkan-Layer registriert – aktiv nur in Spielen mit ReShade.ini neben der EXE.",
+            ],
+            SmoothMotionIncompatibleApis: GraphicsApi.D3D9),
     ];
 
     public static RouteDefinition Get(RouteId id) => All.First(r => r.Id == id);

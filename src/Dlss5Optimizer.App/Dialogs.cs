@@ -11,6 +11,7 @@ public interface IDialogs
 {
     bool Confirm(string title, string text, bool warning = false);
     bool ConfirmList(string title, string header, IEnumerable<string> lines);
+    void ShowList(string title, string header, IEnumerable<string> lines);
     void Info(string title, string text);
 }
 
@@ -22,8 +23,12 @@ public sealed class Dialogs(Func<Window?> owner) : IDialogs
     public void Info(string title, string text) =>
         MessageBox.Show(owner()!, text, title, MessageBoxButton.OK, MessageBoxImage.Information);
 
+    public void ShowList(string title, string header, IEnumerable<string> lines) => ListWindow(title, header, lines, confirm: false);
+
     /// <summary>Bestätigung mit scrollbarer Liste (Installationsschritte, Downloads).</summary>
-    public bool ConfirmList(string title, string header, IEnumerable<string> lines)
+    public bool ConfirmList(string title, string header, IEnumerable<string> lines) => ListWindow(title, header, lines, confirm: true);
+
+    private bool ListWindow(string title, string header, IEnumerable<string> lines, bool confirm)
     {
         var window = new Window
         {
@@ -54,11 +59,11 @@ public sealed class Dialogs(Func<Window?> owner) : IDialogs
         Grid.SetRow(list, 1);
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-        var ok = new Button { Content = "Fortfahren", IsDefault = true, Style = (Style)Application.Current.Resources["PrimaryButton"], Margin = new Thickness(0, 0, 8, 0) };
-        var cancel = new Button { Content = "Abbrechen", IsCancel = true };
+        var ok = new Button { Content = confirm ? "Fortfahren" : "Schließen", IsDefault = true, Style = (Style)Application.Current.Resources["PrimaryButton"], Margin = new Thickness(0, 0, 8, 0) };
         ok.Click += (_, _) => window.DialogResult = true;
         buttons.Children.Add(ok);
-        buttons.Children.Add(cancel);
+        if (confirm)
+            buttons.Children.Add(new Button { Content = "Abbrechen", IsCancel = true });
         Grid.SetRow(buttons, 2);
 
         grid.Children.Add(head);

@@ -74,13 +74,12 @@
       "source": {
         "type": "GitHub",
         "repo": "RankFTW/rhi-repo",
-        "tagPattern": "^renodx-dlss5-\\d",
+        "tagPattern": "^renodx-dlss5-\\d+\\.\\d+\\.\\d+$",
         "assetPattern": "^renodx-dlss5.*\\.(zip|addon64)$",
-        "includePrerelease": true,
         "distribution": "RenoDX-Discord, Kanal #DLSS5 (Spiegel: github.com/RankFTW/rhi-repo)"
       },
       "expectedFiles": [ "renodx-dlss5*.addon64" ],
-      "notes": [ "Herkunft und Inhalt sind nicht prüfbar (Closed Source).", "RenoDX vor Version 6 stürzt ab Treiber 616.64 ab." ]
+      "notes": [ "Herkunft und Inhalt sind nicht prüfbar (Closed Source).", "Es wird die neueste stabile Version geladen (keine Release-Kandidaten). RenoDX vor Version 6 stürzt ab Treiber 616.64 ab." ]
     },
     {
       "id": "deep-fried-chicken",
@@ -92,6 +91,24 @@
       "source": { "type": "Import", "distribution": "Discord des Autors (discord.gg/g2v2XGqvR) – Version 1.4.8 oder neuer" },
       "expectedFiles": [ "deep-fried-chicken.addon64", "deep-fried-chicken-nvngx.dll" ],
       "notes": [ "Darf nicht automatisch geladen werden – bitte die Dateien (oder das Archiv) importieren." ]
+    },
+    {
+      "id": "dxvk",
+      "name": "DXVK",
+      "description": "Übersetzt DirectX 8–11 nach Vulkan. Getesteter Weg für 32-Bit-DX9-Spiele wie Fallout 3 und New Vegas, in denen dgVoodoo scheitert.",
+      "license": "zlib",
+      "homepage": "https://github.com/doitsujin/dxvk",
+      "source": { "type": "GitHub", "repo": "doitsujin/dxvk", "assetPattern": "^dxvk-[\\d.]+\\.tar\\.gz$" },
+      "expectedFiles": [ "d3d9.dll" ]
+    },
+    {
+      "id": "reshade-headers",
+      "name": "ReShade-Shader-Header",
+      "description": "ReShade.fxh, ReShadeUI.fxh und DrawText.fxh – ohne sie kompilieren DLSS5_Feed.fx und LumeniteFX nicht.",
+      "license": "BSD-3-Clause",
+      "homepage": "https://github.com/crosire/reshade-shaders/tree/slim",
+      "source": { "type": "Url", "url": "https://github.com/crosire/reshade-shaders/archive/refs/heads/slim.zip", "fileName": "reshade-shaders-slim.zip" },
+      "expectedFiles": [ "ReShade.fxh", "ReShadeUI.fxh" ]
     },
     {
       "id": "dgvoodoo2",

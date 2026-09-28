@@ -359,9 +359,13 @@ public sealed partial class MainViewModel : ObservableObject
         // Spiele mit mehreren APIs nach der Installation immer mit der installierten API starten.
         var installedApi = g.Installed?.Config.Api;
         var args = installedApi is { } api && g.Analysis.Api.Supported.Each().Count() > 1 ? DecisionEngine.LaunchArgument(g.Analysis.Engine, api) : null;
+        // Script Extender (nvse_loader.exe, fose_loader.exe …) starten, wenn vorhanden – sonst fehlen Mods.
+        var loader = g.Analysis.GameDir is { } gameDir
+            ? g.Analysis.DbEntry?.LaunchExes.Select(l => Path.Combine(gameDir, l)).FirstOrDefault(File.Exists)
+            : null;
         try
         {
-            GameLauncher.Launch(g.Analysis.Game, g.Analysis.MainExe, args);
+            GameLauncher.Launch(g.Analysis.Game, g.Analysis.MainExe, args, loader);
             Log($"{g.Name} gestartet{(args is null ? "" : " mit " + args)}. In eine typische Spielszene gehen, dann „Messen“.");
         }
         catch (Exception e)
@@ -452,6 +456,50 @@ public sealed partial class MainViewModel : ObservableObject
             _s.SaveSettings();
         });
         Recompute(g);
+    }
+
+    /// <summary>Prüft nach einem Spielstart, ob die ganze Kette greift (Logs + Windows-Absturzprotokoll).</summary>
+    [RelayCommand]
+    private void Diagnose()
+    {
+        var g = SelectedGame;
+        if (g?.Analysis.GameDir is not { } dir || g.Analysis.MainExe is not { } exe)
+            return;
+        if (g.Installed is not { } manifest)
+        {
+            _dialogs.Info("Diagnose", "Für dieses Spiel ist nichts installiert.");
+            return;
+        }
+
+        var checks = InstallDiagnostics.Check(dir, manifest, Path.GetFileName(exe));
+        var lines = checks.Select(c => $"{Symbol(c.Status)} {c.Title}\n   {c.Detail}").ToList();
+        var crashes = CrashLog.RecentCrashes(Path.GetFileName(exe), manifest.InstalledAt.LocalDateTime);
+        if (crashes.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("✗ Windows-Ereignisprotokoll seit der Installation:");
+            lines.AddRange(crashes.Select(c => "   " + c));
+        }
+        foreach (var problem in g.IntegrityProblems)
+            lines.Add($"⚠ {problem} – „Reparieren“ installiert neu.");
+
+        bool allOk = checks.All(c => c.Status == DiagnosticStatus.Ok) && crashes.Count == 0 && g.IntegrityProblems.Count == 0;
+        var header = allOk
+            ? "Alles greift: DLSS 5 läuft in diesem Spiel."
+            : checks.Any(c => c.Status == DiagnosticStatus.NotRunYet)
+                ? "Noch nicht vollständig geprüft – Spiel starten, ein paar Sekunden spielen, dann erneut „Diagnose“."
+                : "Es gibt Probleme. Die Hinweise unten sagen, woran es liegt.";
+        _dialogs.ShowList($"Diagnose – {g.Name}", header, lines);
+        foreach (var c in checks)
+            Log($"{g.Name}: Diagnose {c.Title}: {c.Status}");
+
+        static string Symbol(DiagnosticStatus s) => s switch
+        {
+            DiagnosticStatus.Ok => "✓",
+            DiagnosticStatus.Warning => "⚠",
+            DiagnosticStatus.Failed => "✗",
+            _ => "…",
+        };
     }
 
     // ---------------------------------------------------------------- Komponenten

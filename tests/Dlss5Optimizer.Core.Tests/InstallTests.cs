@@ -321,6 +321,7 @@ public class RoutePlannerTests
             (Ids.ReShade, ["ReShade64.dll", "ReShade32.dll"]),
             (Ids.Feeder, ["dlss5-feed.addon64", "DLSS5_Feed.fx"]),
             (Ids.LumeniteFx, ["lumenite_Kernel.fx", "lumenite_bluenoise256.png"]),
+            (Ids.ReShadeHeaders, ["ReShade.fxh", "ReShadeUI.fxh", "DrawText.fxh"]),
             (Ids.DeepFriedChicken, ["deep-fried-chicken.addon64", "deep-fried-chicken-nvngx.dll"]));
         var gameDir = t.Dir("game");
         t.File("game/ReShadePreset.ini", "Techniques=Clarity@Clarity.fx,DLSS5_Feed@DLSS5_Feed.fx\n");
@@ -337,6 +338,9 @@ public class RoutePlannerTests
         Assert.Contains(copies, c => c.Target == "dxgi.dll" && c.Source.EndsWith("ReShade64.dll"));
         Assert.Contains(copies, c => c.Target == Path.Combine("reshade-shaders", "Shaders", "DLSS5_Feed.fx"));
         Assert.Contains(copies, c => c.Target == "nvngx_dlss.dll");
+        Assert.Contains(copies, c => c.Target == Path.Combine("reshade-shaders", "Shaders", "ReShade.fxh"));
+        Assert.Contains(ini, i => i.Target == "dlss5-feed.cfg" && i.Key == "mode" && i.Value == "2");
+        Assert.Contains(ini, i => i.Target == "dlss5-feed.cfg" && i.Key == "reset_every" && i.Value == "0");
     }
 
     [Fact]
@@ -347,6 +351,7 @@ public class RoutePlannerTests
             (Ids.ReShade, ["ReShade64.dll", "ReShade32.dll"]),
             (Ids.Feeder, ["dlss5-feed.addon64", "dlss5-feed.addon32", "DLSS5_Feed.fx", "dlss5-feed-host64.exe"]),
             (Ids.LumeniteFx, ["lumenite_Kernel.fx"]),
+            (Ids.ReShadeHeaders, ["ReShade.fxh", "ReShadeUI.fxh"]),
             (Ids.RenoDx, ["renodx-dlss5.addon64"]));
         var gameDir = t.Dir("game");
 
@@ -358,6 +363,8 @@ public class RoutePlannerTests
         Assert.Contains(copies, c => c.Target == Path.Combine("host64", "dxgi.dll") && c.Source.EndsWith("ReShade64.dll"));
         Assert.Contains(copies, c => c.Target == Path.Combine("host64", "renodx-dlss5.addon64"));
         Assert.Contains(copies, c => c.Target == Path.Combine("host64", "nvngx_dlssnr.dll"));
+        var ini = plan.Steps.OfType<IniSetStep>().ToList();
+        Assert.Contains(ini, i => i.Target == Path.Combine("host64", "ReShade.ini") && i.Key == "NRStyle" && i.Value == "0");
     }
 
     [Fact]

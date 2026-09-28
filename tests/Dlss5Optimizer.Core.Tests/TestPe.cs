@@ -9,7 +9,7 @@ internal static class TestPe
     public const ushort I386 = 0x014C;
     public const ushort Amd64 = 0x8664;
 
-    public static byte[] Build(ushort machine, string[] imports, string[]? delayImports = null, Version? version = null, bool delayUsesVa = false)
+    public static byte[] Build(ushort machine, string[] imports, string[]? delayImports = null, Version? version = null, bool delayUsesVa = false, bool largeAddressAware = false)
     {
         bool pe32Plus = machine != I386;
         delayImports ??= [];
@@ -85,6 +85,7 @@ internal static class TestPe
         BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(pe + 4), machine);
         BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(pe + 6), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(pe + 20), optSize);
+        BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(pe + 22), (ushort)(0x0002 | (largeAddressAware ? 0x0020 : 0)));
 
         int opt = pe + 24;
         BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(opt), (ushort)(pe32Plus ? 0x20B : 0x10B));
@@ -116,10 +117,10 @@ internal static class TestPe
         return file;
     }
 
-    public static string Write(string path, ushort machine, string[] imports, string[]? delayImports = null, Version? version = null, byte[]? trailer = null)
+    public static string Write(string path, ushort machine, string[] imports, string[]? delayImports = null, Version? version = null, byte[]? trailer = null, bool largeAddressAware = false)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var bytes = Build(machine, imports, delayImports, version);
+        var bytes = Build(machine, imports, delayImports, version, largeAddressAware: largeAddressAware);
         if (trailer is not null)
             bytes = [.. bytes, .. trailer];
         File.WriteAllBytes(path, bytes);

@@ -9,7 +9,7 @@ automatisch die Variante mit der besten Kombination aus Bildqualität und Leistu
   erwartende Bildrate aus und nimmt die beste, die dein Ziel erreicht
 - installiert mit Sicherung und stellt auf Knopfdruck den Originalzustand wieder her
 
-> **Status:** Erste Version. Kern und Installer sind mit 86 Unit-Tests abgedeckt; die Oberfläche und
+> **Status:** Erste Version. Kern und Installer sind mit 99 Unit-Tests abgedeckt (inklusive kompletter Szenarien für Fallout 3 und New Vegas); die Oberfläche und
 > die Windows-Teile (Registry, PresentMon, Spielstart) sind gebaut, aber noch nicht auf echter
 > Hardware getestet. Bitte zuerst mit einem Einzelspieler-Spiel ausprobieren.
 
@@ -63,10 +63,38 @@ Außerdem werden erkannt:
 | DX11 mit DLSS | ReShade + dlss5-bridge + Add-on (RenoDX 8.x braucht keine Brücke) | aus dem Spiel | ~0,9 ms |
 | Vulkan mit DLSS | ReShade (Vulkan-Layer) + dlss5-bridge + Add-on | aus dem Spiel | ~1,5 ms, zwei DLSS-Sitzungen |
 | kein Upscaler (DX10–12, Vulkan, OpenGL) | ReShade + **DLSS5-Feeder** + LumeniteFX + Add-on | geschätzt (Schlieren möglich) | ~1,2 ms |
-| DX9, DX8, DirectDraw | **dgVoodoo2** → DX11 → Feeder | geschätzt | ~1,6 ms |
+| DX9 (z. B. Fallout 3/New Vegas) | **DXVK** → Vulkan → ReShade-Vulkan-Layer → Feeder | geschätzt | ~1,4 ms |
+| DX8, DirectDraw (und DX9, wenn DXVK scheitert) | **dgVoodoo2** → DX11 → Feeder | geschätzt | ~1,6 ms |
 | Anti-Cheat | **gesperrt** (Bann-Risiko). Freischalten nur ausdrücklich und nur für offline | – | – |
 
 32-Bit-Spiele bekommen einen 64-Bit-Hilfsprozess (`host64\`), weil DLSS nur als 64-Bit-Code existiert.
+
+### Alte Spiele: Fallout 3 und Fallout: New Vegas
+
+Für 32-Bit-DirectX-9-Spiele ist **DXVK der Standard**, nicht dgVoodoo. Die Gründe:
+- dgVoodoo beendet Fallout 3 nach etwa einer Sekunde.
+- In New Vegas blockiert dgVoodoo die Bildübergabe an den Feeder.
+- Unter Vulkan kann ReShade Compute-Shader ausführen, die LumeniteFX für die Bewegungsvektoren braucht.
+
+Der Aufbau folgt der getesteten Referenz aus
+[dlss5-classic-games](https://github.com/perseval-BLR/dlss5-classic-games) (Fallout 3, dort bestätigt) und dem
+Community-Mod FNV-DLSS5 (gleiche DXVK-Kette für New Vegas):
+
+- `d3d9.dll` = DXVK (32 Bit). Eine vorhandene ENB- oder DXVK-`d3d9.dll` wird gesichert und ersetzt.
+- ReShade als **32-Bit-Vulkan-Layer**, dazu die ReShade.ini **ohne** `LoadFromDllMain`. Sonst meldet das Add-on „No add-on was registered“ und wird entladen.
+- `dlss5-feed.addon32` neben der EXE. `dlss5-feed.cfg` mit `mode=2`, weil `mode=1` nur ein Transporttest ist, und `reset_every=0`, `rebuild=0`, `warmup_rebuild=0`.
+- `host64\`: Hilfsprozess, ReShade 64 Bit, RenoDX mit `NRStyle=0` (mit 2 bleibt das Bild schwarz) und `EnableHooks=2`, dazu die NVIDIA-DLLs.
+- Getestete Tiefenpuffer-Werte (`RESHADE_DEPTH_INPUT_IS_REVERSED=1` …) und Kantenglättung aus in `FalloutPrefs.ini`. Die Datei wird nur geändert, wenn sie existiert, und gesichert.
+- Ziel 60 fps, weil die Gamebryo-Engine darauf ausgelegt ist. Die Auswahl nimmt deshalb volle DLSS-5-Qualität statt unnötiger Einsparungen.
+- Warnung, wenn die EXE kein Large-Address-Aware-Flag hat (4GB-Patch).
+- „Spiel starten“ nimmt `nvse_loader.exe` bzw. `fose_loader.exe`, wenn vorhanden.
+
+**Nach dem ersten Start „Diagnose“ klicken.** Das Tool liest die Logs von DXVK, ReShade, Feeder,
+Hilfsprozess und DLSS 5 sowie das Windows-Absturzprotokoll. Es zeigt, an welcher Stelle die Kette
+hängt, zum Beispiel:
+- „Das Spiel lädt die System-d3d9.dll“
+- „nur Transporttest“
+- „0xbad00001 – Modell passt nicht“
 
 ### 3. Leistungsmodell und Auswahl
 
@@ -127,7 +155,9 @@ Die Hebel, sortiert nach Wirkung:
 | PresentMon | MIT | GitHub-Releases |
 | `nvngx_dlssnr.dll` | NVIDIA | aus dem installierten Treiber |
 | `nvngx_dlss.dll` | NVIDIA DLSS SDK | aus einem installierten Spiel, sonst von github.com/NVIDIA/DLSS |
-| **RenoDX DLSS 5** | Closed Source | Download aus dem Community-Spiegel (RankFTW/rhi-repo) nach extra Warnung, oder Import |
+| DXVK | zlib | GitHub-Releases |
+| ReShade-Shader-Header (`ReShade.fxh` …) | BSD-3 | crosire/reshade-shaders (Zweig „slim“) |
+| **RenoDX DLSS 5** | Closed Source | neueste **stabile** Version aus dem Community-Spiegel (RankFTW/rhi-repo) nach extra Warnung, oder Import |
 | **Deep Fried Chicken** | Closed Source, Weitergabe untersagt | nur **Import** (Discord des Autors) |
 
 Bewusst **nicht** unterstützt: veränderte oder geleakte DLSS-Modelle, etwa die „RTX 20–40“-Builds.
@@ -167,6 +197,10 @@ dotnet publish src/Dlss5Optimizer.App -c Release -o publish    # Single-File-EXE
 - **Bisher nur unter Linux gebaut und getestet.** Die Windows-Teile (Registry, Modul-Liste,
   PresentMon, Vulkan-Layer) sind nach Dokumentation geschrieben, aber noch nicht auf einem echten
   Windows-PC gelaufen.
+- **Fallout 3/New Vegas:** Die Konfiguration stammt aus bestätigt laufenden Community-Aufbauten.
+  Für New Vegas sind die Tiefenpuffer-Werte von Fallout 3 übernommen (gleiche Engine). Die
+  Bewegungsvektoren sind geschätzt, deshalb sind Schlieren bei schnellen Drehungen möglich; HUD und
+  Pip-Boy werden mitbearbeitet.
 - **Messwerte:** Die Leistungswerte stammen aus wenigen Spielen und zum Teil aus Zweitquellen;
   die Vorhersagen sind vor dem ersten „Messen“ Schätzungen.
 - **Community-Mods:** Sie ändern sich wöchentlich. Dateinamen und INI-Schlüssel stehen deshalb in
@@ -192,4 +226,12 @@ dotnet publish src/Dlss5Optimizer.App -c Release -o publish    # Single-File-EXE
   - [LumeniteFX](https://github.com/umar-afzaal/LumeniteFX)
   - [dgVoodoo2](https://github.com/dege-diosg/dgVoodoo2)
   - [PresentMon](https://github.com/GameTechDev/PresentMon)
-- Vergleichbare Tools: [DLSS5-Swapper](https://github.com/rakanki911/DLSS5-Swapper), [DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick)
+- Alte Spiele:
+  - [dlss5-classic-games](https://github.com/perseval-BLR/dlss5-classic-games) (u. a. `OLD-GAMES-GOTCHAS.en.md`)
+  - [FNV-DLSS5](https://www.nexusmods.com/newvegas/mods/99411)
+  - [DXVK](https://github.com/doitsujin/dxvk)
+  - [reshade-shaders (slim)](https://github.com/crosire/reshade-shaders/tree/slim)
+- Vergleichbare Tools:
+  - [DLSS5-Swapper](https://github.com/rakanki911/DLSS5-Swapper)
+  - [DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick)
+  - [dlss5-launcher](https://github.com/xdzleo/dlss5-launcher)

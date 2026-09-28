@@ -17,7 +17,12 @@ public abstract record InstallStep(string Description);
 /// <summary>Kopiert eine Datei; <see cref="Target"/> ist relativ zum Ordner der Spiel-EXE.</summary>
 public sealed record CopyFileStep(string Source, string Target, string Description) : InstallStep(Description);
 
-public sealed record IniSetStep(string Target, string Section, string Key, string Value, string Description) : InstallStep(Description);
+/// <summary>
+/// Setzt einen INI-Schlüssel. <see cref="Target"/> ist relativ zum Spielordner oder beginnt mit einem
+/// Platzhalter wie <c>%DOCUMENTS%</c> (Einstellungsdateien des Spiels unter „Eigene Dateien“).
+/// Mit <see cref="OnlyIfExists"/> wird eine fehlende Datei nicht angelegt.
+/// </summary>
+public sealed record IniSetStep(string Target, string Section, string Key, string Value, string Description, bool OnlyIfExists = false) : InstallStep(Description);
 
 public sealed record WriteTextStep(string Target, string Content, string Description) : InstallStep(Description);
 
@@ -28,10 +33,10 @@ public sealed record ManualStep(string Instruction) : InstallStep(Instruction);
 public sealed record RemoveFileStep(string Target, string Description) : InstallStep(Description);
 
 /// <summary>
-/// Registriert ReShade als Vulkan-Layer für den aktuellen Nutzer. Der Layer ist global, greift aber
-/// nur in Spielen, neben deren EXE eine ReShade.ini liegt – er bleibt daher beim Rückgängigmachen bestehen.
+/// Registriert ReShade als Vulkan-Layer (32- oder 64-Bit-Registry-Zweig). Der Layer ist global, greift
+/// aber nur in Spielen, neben deren EXE eine ReShade.ini liegt – er bleibt daher beim Rückgängigmachen bestehen.
 /// </summary>
-public sealed record RegisterVulkanLayerStep(string LayerJson, string Description) : InstallStep(Description);
+public sealed record RegisterVulkanLayerStep(string LayerJson, string Description, bool Is32Bit = false) : InstallStep(Description);
 
 public sealed record InstallPlan(
     Configuration Config,
@@ -59,11 +64,14 @@ public sealed record InstallManifest(
 /// landet vorher in &lt;Spiel&gt;\.dlss5-optimizer\backup. Schlägt ein Schritt fehl, wird alles
 /// zurückgerollt; "Rückgängig" stellt den Originalzustand wieder her.
 /// </summary>
-public sealed class Installer(Action<string>? registerVulkanLayer = null)
+/// <param name="registerVulkanLayer">Registriert einen Layer (JSON-Pfad, 32 Bit?) – nur unter Windows.</param>
+/// <param name="resolveToken">Löst Platzhalter wie %DOCUMENTS% in echte Ordner auf.</param>
+public sealed class Installer(Action<string, bool>? registerVulkanLayer = null, Func<string, string?>? resolveToken = null)
 {
     public const string StateDirName = ".dlss5-optimizer";
     private const string ManifestName = "manifest.json";
     private const string BackupDirName = "backup";
+    private const string ExternalBackupDir = "_external";
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -118,6 +126,8 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
                     }
                     case IniSetStep i:
                     {
+                        if (i.OnlyIfExists && !File.Exists(ResolvePath(gameDir, i.Target)))
+                            break;
                         var target = Prepare(i.Target);
                         var ini = IniFile.Load(target);
                         ini.Set(i.Section, i.Key, i.Value);
@@ -140,7 +150,7 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
                     case RegisterVulkanLayerStep v:
                         if (registerVulkanLayer is null)
                             throw new PlatformNotSupportedException("Vulkan-Layer können nur unter Windows registriert werden.");
-                        registerVulkanLayer(v.LayerJson);
+                        registerVulkanLayer(v.LayerJson, v.Is32Bit);
                         break;
                     case ManualStep:
                         break;
@@ -151,7 +161,7 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
                 FormatVersion: 1,
                 InstalledAt: DateTimeOffset.Now,
                 Config: plan.Config,
-                Files: touched.Select(kv => Entry(gameDir, kv.Key, kv.Value)).ToList(),
+                Files: touched.Select(kv => Entry(ResolvePath(gameDir, kv.Key), kv.Key, kv.Value)).ToList(),
                 CreatedDirectories: createdDirs,
                 CleanupPatterns: plan.CleanupPatterns.ToList(),
                 PreexistingFiles: preexisting);
@@ -167,19 +177,26 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
 
         string Prepare(string relative)
         {
-            var target = SafePath(gameDir, relative);
-            var rel = Path.GetRelativePath(gameDir, target);
-            if (!touched.ContainsKey(rel))
+            var target = ResolvePath(gameDir, relative);
+            bool external = IsExternal(relative);
+            var key = external ? relative : Path.GetRelativePath(gameDir, target);
+            if (!touched.ContainsKey(key))
             {
                 bool existed = File.Exists(target);
                 if (existed)
                 {
-                    var bak = Path.Combine(backup, rel);
+                    var bak = BackupPath(gameDir, key);
                     Directory.CreateDirectory(Path.GetDirectoryName(bak)!);
                     File.Copy(target, bak, overwrite: true);
                 }
-                touched[rel] = existed;
+                else if (external)
+                {
+                    throw new InvalidOperationException($"Einstellungsdatei außerhalb des Spielordners fehlt: {relative}");
+                }
+                touched[key] = existed;
             }
+            if (external)
+                return target;
             // Fehlende Ordner anlegen und merken, damit "Rückgängig" sie wieder entfernt.
             var dir = Path.GetDirectoryName(target)!;
             var missing = new Stack<string>();
@@ -224,7 +241,7 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
         if (manifest is null)
             return [];
         var problems = new List<string>();
-        foreach (var f in manifest.Files.Where(f => !f.RelativePath.EndsWith(".ini", StringComparison.OrdinalIgnoreCase)))
+        foreach (var f in manifest.Files.Where(f => !f.RelativePath.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) && !IsExternal(f.RelativePath)))
         {
             if (f.InstalledSha256 is null)
                 continue; // bewusst entfernte Datei
@@ -244,15 +261,14 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
         return problems;
     }
 
-    private static void Restore(string gameDir, IEnumerable<ManifestEntry> files, IEnumerable<string> createdDirs)
+    private void Restore(string gameDir, IEnumerable<ManifestEntry> files, IEnumerable<string> createdDirs)
     {
-        var backup = Path.Combine(StateDir(gameDir), BackupDirName);
         foreach (var f in files)
         {
-            var target = Path.Combine(gameDir, f.RelativePath);
+            var target = ResolvePath(gameDir, f.RelativePath);
             if (f.Existed)
             {
-                var bak = Path.Combine(backup, f.RelativePath);
+                var bak = BackupPath(gameDir, f.RelativePath);
                 if (File.Exists(bak))
                     File.Copy(bak, target, overwrite: true);
             }
@@ -283,13 +299,36 @@ public sealed class Installer(Action<string>? registerVulkanLayer = null)
         }
     }
 
-    private static ManifestEntry Entry(string gameDir, string rel, bool existed)
+    private static ManifestEntry Entry(string path, string rel, bool existed)
     {
-        var path = Path.Combine(gameDir, rel);
         if (!File.Exists(path))
             return new ManifestEntry(rel, existed, null);
         var info = new FileInfo(path);
         return new ManifestEntry(rel, existed, ComponentStore.Sha256Of(path), info.Length, info.LastWriteTimeUtc);
+    }
+
+    private static bool IsExternal(string target) => target.StartsWith('%');
+
+    /// <summary>Ziel im Spielordner oder – mit Platzhalter – in einem freigegebenen Ordner außerhalb.</summary>
+    internal string ResolvePath(string gameDir, string target)
+    {
+        if (!IsExternal(target))
+            return SafePath(gameDir, target);
+        int end = target.IndexOf('%', 1);
+        if (end < 0)
+            throw new InvalidOperationException($"Ungültiger Platzhalter: {target}");
+        var token = target[..(end + 1)];
+        var root = resolveToken?.Invoke(token) ?? throw new InvalidOperationException($"Platzhalter {token} ist hier nicht verfügbar.");
+        return SafePath(Path.GetFullPath(root), target[(end + 1)..].TrimStart('\\', '/'));
+    }
+
+    private static string BackupPath(string gameDir, string key)
+    {
+        var backup = Path.Combine(StateDir(gameDir), BackupDirName);
+        if (!IsExternal(key))
+            return Path.Combine(backup, key);
+        var safeName = string.Concat(key.Select(ch => char.IsLetterOrDigit(ch) || ch is '.' or '-' ? ch : '_'));
+        return Path.Combine(backup, ExternalBackupDir, safeName);
     }
 
     internal static string SafePath(string root, string relative)
