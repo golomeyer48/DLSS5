@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>0.1.0</Version>
+    <Company>DLSS5 Optimizer</Company>
+    <Product>DLSS5 Optimizer</Product>
+    <Copyright>MIT License</Copyright>
+  </PropertyGroup>
+</Project>

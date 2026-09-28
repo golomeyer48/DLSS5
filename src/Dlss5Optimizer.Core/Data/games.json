@@ -1,0 +1,80 @@
+{
+  // Spiel-Datenbank. Wird mit %LOCALAPPDATA%\DLSS5Optimizer\games.json überlagert, falls vorhanden.
+  // Nur Fakten eintragen, die sich nicht aus den Spieldateien ablesen lassen.
+  "games": [
+    {
+      "name": "NBA 2K27",
+      "namePattern": "^NBA 2K27",
+      "nativeDlss5": true,
+      "apis": "D3D12",
+      "defaultApi": "D3D12",
+      "notes": [
+        "Erstes Spiel mit nativem DLSS 5 (seit 03.09.2026). DLSS 5 im Grafikmenü des Spiels aktivieren – kein Mod nötig.",
+        "Treiber 616.64 WHQL oder neuer."
+      ]
+    },
+    {
+      "name": "Starfield",
+      "steamAppIds": [ "1716740" ],
+      "dlss5Announced": true,
+      "apis": "D3D12",
+      "defaultApi": "D3D12",
+      "notes": [ "Natives DLSS 5 angekündigt. Bis zum Patch per Mod; danach Mod entfernen (Rückgängig)." ]
+    },
+    {
+      "name": "Hogwarts Legacy",
+      "steamAppIds": [ "990080" ],
+      "dlss5Announced": true,
+      "apis": "D3D12",
+      "defaultApi": "D3D12",
+      "notes": [ "Natives DLSS 5 angekündigt." ]
+    },
+    {
+      "name": "Assassin's Creed Shadows",
+      "steamAppIds": [ "3159330" ],
+      "dlss5Announced": true,
+      "apis": "D3D12",
+      "defaultApi": "D3D12",
+      "notes": [ "Natives DLSS 5 angekündigt." ]
+    },
+    {
+      "name": "Cyberpunk 2077",
+      "steamAppIds": [ "1091500" ],
+      "exeNames": [ "Cyberpunk2077.exe" ],
+      "mainExe": "bin/x64/Cyberpunk2077.exe",
+      "apis": "D3D12",
+      "defaultApi": "D3D12",
+      "preferredRoute": "OptiScalerNr",
+      "notes": [ "OptiScaler-Route bevorzugt: Mit dem ReShade-Add-on gibt es ein bekanntes Multi-Thread-Problem bei DLSS." ]
+    },
+    {
+      "name": "Baldur's Gate 3",
+      "steamAppIds": [ "1086940" ],
+      "exeNames": [ "bg3.exe", "bg3_dx11.exe" ],
+      "mainExe": "bin/bg3.exe",
+      "apis": "Vulkan, D3D11",
+      "defaultApi": "Vulkan",
+      "apiExeVariants": [
+        { "api": "Vulkan", "exe": "bin/bg3.exe" },
+        { "api": "D3D11", "exe": "bin/bg3_dx11.exe" }
+      ],
+      "notes": [ "Split-Screen: Die Neural-Rendering-Ausgabe ist dort noch fehlerhaft (dlss5-bridge)." ]
+    },
+    {
+      "name": "Red Dead Redemption 2",
+      "steamAppIds": [ "1174180" ],
+      "exeNames": [ "RDR2.exe" ],
+      "apis": "Vulkan, D3D12",
+      "defaultApi": "Vulkan",
+      "notes": [ "API im Grafikmenü umstellen (Erweiterte Einstellungen → Grafik-API). Red Dead Online nicht mit Mods starten." ]
+    },
+    {
+      "name": "DOOM Eternal",
+      "steamAppIds": [ "782330" ],
+      "exeNames": [ "DOOMEternalx64vk.exe" ],
+      "apis": "Vulkan",
+      "defaultApi": "Vulkan",
+      "notes": [ "Nur Vulkan. Battlemode (online) nicht mit Mods starten." ]
+    }
+  ]
+}
