@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Dlss5Optimizer.Core.Benchmark;
 using Dlss5Optimizer.Core.Components;
+using Dlss5Optimizer.Core.Install;
 using Dlss5Optimizer.Core.Models;
 using Microsoft.Win32;
 
@@ -86,15 +87,19 @@ public static class VulkanLayer
 /// <summary>Liest Absturz- und Hänger-Meldungen eines Spiels aus dem Windows-Ereignisprotokoll.</summary>
 public static class CrashLog
 {
-    /// <summary>Ereignis 1000 (Anwendungsfehler) und 1002 (Anwendung hängt) seit einem Zeitpunkt.</summary>
-    public static IReadOnlyList<string> RecentCrashes(string exeName, DateTime sinceLocal, int max = 5)
+    /// <summary>
+    /// Ereignis 1000 (Anwendungsfehler) als <see cref="CrashInfo"/> und alle Meldungen (inkl. 1002,
+    /// Anwendung hängt) als lesbare Zeilen, seit einem Zeitpunkt.
+    /// </summary>
+    public static (IReadOnlyList<CrashInfo> Crashes, IReadOnlyList<string> Lines) Recent(string exeName, DateTime sinceLocal, int max = 5)
     {
-        var result = new List<string>();
+        var crashes = new List<CrashInfo>();
+        var lines = new List<string>();
         try
         {
             using var log = new System.Diagnostics.EventLog("Application");
             var entries = log.Entries;
-            for (int i = entries.Count - 1; i >= 0 && result.Count < max; i--)
+            for (int i = entries.Count - 1; i >= 0 && lines.Count < max; i--)
             {
                 var e = entries[i];
                 if (e.TimeGenerated < sinceLocal)
@@ -106,16 +111,34 @@ public static class CrashLog
                 if (r.Length == 0 || !r[0].Equals(exeName, StringComparison.OrdinalIgnoreCase))
                     continue;
                 // Ereignis 1000: [3] = fehlerhaftes Modul, [6] = Ausnahmecode (sprachunabhängig).
-                result.Add(id == 1000 && r.Length > 6
-                    ? $"{e.TimeGenerated:dd.MM. HH:mm}: Absturz in {r[3]} (Code 0x{r[6].TrimStart('0', 'x')})"
-                    : $"{e.TimeGenerated:dd.MM. HH:mm}: Spiel reagierte nicht mehr (hängt)");
+                if (id == 1000 && r.Length > 6)
+                {
+                    var code = "0x" + r[6].TrimStart('0', 'x');
+                    crashes.Add(new CrashInfo(r[3], code, e.TimeGenerated));
+                    lines.Add($"{e.TimeGenerated:dd.MM. HH:mm}: Absturz in {r[3]} (Code {code})");
+                }
+                else
+                {
+                    lines.Add($"{e.TimeGenerated:dd.MM. HH:mm}: Spiel reagierte nicht mehr (hängt)");
+                }
             }
         }
         catch (Exception e) when (e is System.Security.SecurityException or InvalidOperationException or UnauthorizedAccessException)
         {
-            result.Add("Ereignisprotokoll nicht lesbar: " + e.Message);
+            lines.Add("Ereignisprotokoll nicht lesbar: " + e.Message);
         }
-        return result;
+        return (crashes, lines);
+    }
+
+    /// <summary>
+    /// d3d8to9 braucht D3DX9 aus der alten DirectX-Laufzeit. 32-Bit-Spiele laden sie aus SysWOW64.
+    /// </summary>
+    public static bool HasD3dx9Runtime(bool is32Bit)
+    {
+        var dir = is32Bit && Environment.Is64BitOperatingSystem
+            ? Environment.GetFolderPath(Environment.SpecialFolder.SystemX86)
+            : Environment.GetFolderPath(Environment.SpecialFolder.System);
+        return File.Exists(Path.Combine(dir, "d3dx9_43.dll"));
     }
 }
 

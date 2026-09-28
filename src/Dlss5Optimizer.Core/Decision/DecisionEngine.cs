@@ -21,7 +21,9 @@ public sealed class DecisionEngine
         _canAutoDownload = canAutoDownload;
     }
 
-    public Recommendation Recommend(GameAnalysis game, SystemInfo system, UserPreferences prefs, IReadOnlyDictionary<GraphicsApi, Calibration>? calibrations = null)
+    public Recommendation Recommend(GameAnalysis game, SystemInfo system, UserPreferences prefs,
+        IReadOnlyDictionary<GraphicsApi, Calibration>? calibrations = null,
+        IReadOnlyDictionary<RouteId, RouteOutcome>? outcomes = null)
     {
         var notes = new List<string>();
         int target = prefs.EffectiveTargetFps(system.Display);
@@ -62,8 +64,23 @@ public sealed class DecisionEngine
             {
                 if (!IsEligible(route, api, game, prefs))
                     continue;
-                candidates.AddRange(Expand(route, api, game, system, prefs, model));
+                if (outcomes?.GetValueOrDefault(route.Id) is { Worked: false })
+                    continue; // bei diesem Nutzer schon gescheitert
+                var expanded = Expand(route, api, game, system, prefs, model);
+                if (outcomes?.GetValueOrDefault(route.Id) is { Worked: true })
+                    expanded = expanded.Select(c => c with
+                    {
+                        Proven = true,
+                        Reasons = c.Reasons.Append("Bei dir getestet: läuft").ToList(),
+                    });
+                candidates.AddRange(expanded);
             }
+        }
+
+        foreach (var (id, outcome) in outcomes ?? new Dictionary<RouteId, RouteOutcome>())
+        {
+            if (!outcome.Worked)
+                notes.Add($"„{RouteCatalog.Get(id).Name}“ ist bei dir gescheitert ({outcome.Reason}) und wird übersprungen.");
         }
 
         if (candidates.Count == 0)
@@ -106,11 +123,15 @@ public sealed class DecisionEngine
 
     /// <summary>
     /// Sortierung: Erst die, die das Ziel erreichen (nach Qualität), dann der Rest (nach Bildrate).
+    /// Innerhalb jeder Gruppe geht eine bei diesem Nutzer erprobte Route vor, danach die von der
+    /// Spiel-Datenbank empfohlene – echte Erfahrung schlägt ein, zwei geschätzte fps Unterschied.
     /// Bei Gleichstand gewinnt das Stabilere (weniger experimentell, ohne Frame Generation).
     /// </summary>
     public static IEnumerable<Candidate> Rank(IEnumerable<Candidate> candidates, int targetFps) =>
         candidates
             .OrderByDescending(c => c.Prediction.DisplayedFps >= targetFps)
+            .ThenByDescending(c => c.Proven)
+            .ThenByDescending(c => c.Recommended)
             .ThenByDescending(c => c.Prediction.DisplayedFps >= targetFps ? c.Prediction.Quality : c.Prediction.DisplayedFps)
             .ThenBy(c => c.Route.Experimental)
             .ThenBy(c => c.Config.FrameGen != FrameGenMode.Off)
@@ -121,6 +142,10 @@ public sealed class DecisionEngine
         bool aHit = a.Prediction.DisplayedFps >= target, bHit = b.Prediction.DisplayedFps >= target;
         if (aHit != bHit)
             return aHit;
+        if (a.Proven != b.Proven)
+            return a.Proven;
+        if (a.Recommended != b.Recommended)
+            return a.Recommended;
         return aHit
             ? a.Prediction.Quality > b.Prediction.Quality + 2
             : a.Prediction.DisplayedFps > b.Prediction.DisplayedFps * 1.05;
@@ -213,11 +238,9 @@ public sealed class DecisionEngine
                 var reasons = new List<string>();
                 var warnings = new List<string>(route.Caveats);
                 double quality = Quality(route, config, usesAltInputs, reasons, warnings);
-                if (string.Equals(game.DbEntry?.PreferredRoute, route.Id.ToString(), StringComparison.OrdinalIgnoreCase))
-                {
-                    quality += 1; // gibt bei sonst gleicher Bewertung den Ausschlag
+                bool recommended = string.Equals(game.DbEntry?.PreferredRoute, route.Id.ToString(), StringComparison.OrdinalIgnoreCase);
+                if (recommended)
                     reasons.Add("Für dieses Spiel empfohlen (Spiel-Datenbank)");
-                }
                 var prediction = model.Predict(route, config, game.Bitness, quality);
                 if (game.DbEntry?.FrameCapFps is { } fpsCap && prediction.RenderedFps > fpsCap)
                 {
@@ -233,7 +256,7 @@ public sealed class DecisionEngine
                     && routeMissing.All(m => m.Id != preId))
                     routeMissing.Add(new MissingComponent(preId, route.PreUpscaleLabel ?? preId, _canAutoDownload(preId)));
 
-                yield return new Candidate(route, config, prediction, routeMissing, reasons, warnings);
+                yield return new Candidate(route, config, prediction, routeMissing, reasons, warnings) { Recommended = recommended };
             }
         }
     }

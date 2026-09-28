@@ -252,12 +252,13 @@ public class DecisionEngineTests
     }
 
     [Fact]
-    public void Dx8GameUsesDgVoodoo()
+    public void Dx8GameUsesD3D8To9WithDxvkAndKeepsDgVoodooAsAlternative()
     {
         var game = Game(GraphicsApi.D3D8, GraphicsApi.D3D8, UpscalerFeature.None, Bitness.X86);
         var rec = Engine(RouteCatalog.Ids.LumeniteFx, RouteCatalog.Ids.RenoDx).Recommend(game, System5070Ti, new UserPreferences());
 
-        Assert.Equal(RouteId.LegacyFeeder, rec.Best?.Route.Id);
+        Assert.Equal(RouteId.LegacyD3D8Dxvk, rec.Best?.Route.Id);
+        Assert.Contains(rec.Alternatives, c => c.Route.Id == RouteId.LegacyFeeder);
     }
 
     [Fact]

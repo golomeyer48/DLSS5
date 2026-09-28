@@ -22,6 +22,9 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
     private const string FeedDebugTechnique = "DLSS5_Feed_Debug@DLSS5_Feed.fx";
     private const int LumeniteMvProvider = 3;
 
+    /// <summary>Vom Tiefenpuffer-Assistenten gewählte Einstellung je Spiel – bleibt bei „Reparieren“ erhalten.</summary>
+    public Func<GameAnalysis, DepthVariant?>? DepthOverride { get; init; }
+
     public InstallPlan Plan(GameAnalysis game, Candidate candidate)
     {
         var gameDir = game.GameDir ?? throw new PlanException("Spiel-EXE unbekannt.", []);
@@ -43,6 +46,7 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
             case RouteId.Feeder:
             case RouteId.LegacyFeeder:
             case RouteId.LegacyDxvkFeeder:
+            case RouteId.LegacyD3D8Dxvk:
                 PlanFeeder(ctx);
                 break;
         }
@@ -132,13 +136,15 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         bool is32 = c.Game.Bitness == Bitness.X86;
         var route = c.Candidate.Route.Id;
         // Über DXVK wird aus DX9 Vulkan: ReShade kommt dann als Vulkan-Layer, nicht als DLL im Spielordner.
-        bool viaLayer = c.Config.Api == GraphicsApi.Vulkan || route == RouteId.LegacyDxvkFeeder;
+        bool viaLayer = c.Config.Api == GraphicsApi.Vulkan || route.UsesDxvk();
         // Deep Fried Chicken ist auf 32-Bit-Vulkan ungetestet – dort nur RenoDX (so auch in allen Referenzen).
-        var consumer = route == RouteId.LegacyDxvkFeeder || viaLayer && is32 ? Ids.RenoDx : ChooseConsumer();
+        var consumer = route.UsesDxvk() || viaLayer && is32 ? Ids.RenoDx : ChooseConsumer();
 
         if (route == RouteId.LegacyFeeder)
             PlanDgVoodoo(c, is32);
-        if (route == RouteId.LegacyDxvkFeeder)
+        if (route == RouteId.LegacyD3D8Dxvk)
+            PlanD3D8To9(c);
+        if (route.UsesDxvk())
             PlanDxvk(c, is32);
 
         if (viaLayer)
@@ -195,7 +201,7 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         c.CopyResolved(Ids.DlssRuntime, "nvngx_dlss.dll", Path.Combine(consumerDir, "nvngx_dlss.dll"), "DLSS-Laufzeit (DLAA)");
 
         ApplyUserIniTweaks(c);
-        if (c.Game.Mods.HasFlag(ExistingMod.Enb) && route is RouteId.LegacyDxvkFeeder or RouteId.LegacyFeeder)
+        if (c.Game.Mods.HasFlag(ExistingMod.Enb) && route.IsLegacy())
             c.Hints.Add("ENB wurde deaktiviert (seine d3d9.dll ist gesichert). „Rückgängig“ stellt ENB wieder her.");
 
         c.Hints.Add("ReShade-Menü: Pos1-Taste. Lumenite_Kernel muss aktiv sein und über DLSS5_Feed stehen.");
@@ -220,10 +226,19 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
             return;
         }
         c.Steps.Add(new CopyFileStep(src, "d3d9.dll", $"DXVK ({arch}) als d3d9.dll – DirectX 9 → Vulkan"));
+        foreach (var extra in c.Game.DbEntry?.WrapperExtraDirs ?? [])
+            c.Steps.Add(new CopyFileStep(src, Path.Combine(extra, "d3d9.dll"), $"DXVK zusätzlich in {extra}\\ (die Engine lädt d3d9.dll von dort)"));
         if (File.Exists(Path.Combine(c.GameDir, "dgVoodoo.conf")))
             c.Hints.Add("dgVoodoo war installiert – seine D3D9.dll wurde durch DXVK ersetzt (gesichert).");
         // DXVK schreibt Logs und Shader-Caches neben die EXE.
         c.Cleanup.AddRange(["*_d3d9.log", "*_dxgi.log", "*.dxvk-cache"]);
+    }
+
+    /// <summary>d3d8to9 (DirectX 8 → 9) als d3d8.dll; dahinter übernimmt DXVK die d3d9.dll.</summary>
+    private void PlanD3D8To9(Context c)
+    {
+        c.Copy(Ids.D3D8To9, "d3d8.dll", "d3d8.dll", "d3d8to9 als d3d8.dll – DirectX 8 → DirectX 9", prefer32Bit: true);
+        c.Hints.Add("d3d8to9 braucht die DirectX-Laufzeit von Juni 2010 (D3DX9). Startet das Spiel nicht, die „DirectX End-User Runtime“ von Microsoft installieren.");
     }
 
     /// <summary>
@@ -251,18 +266,27 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
             c.Ini("dlss5-feed.cfg", "", key, value, $"{key}={value}");
     }
 
-    /// <summary>Getestete Tiefenpuffer-Einstellungen des Spiels in ReShade.ini [GENERAL] einmischen.</summary>
-    private static void WriteReShadeDefines(Context c)
+    /// <summary>
+    /// Getestete Tiefenpuffer-Einstellungen des Spiels in ReShade.ini [GENERAL] einmischen; eine mit dem
+    /// Tiefenpuffer-Assistenten gewählte Variante hat Vorrang.
+    /// </summary>
+    private void WriteReShadeDefines(Context c)
     {
         var defines = c.Game.DbEntry?.ReShadeDefines ?? [];
-        if (defines.Length == 0)
+        var variant = DepthOverride?.Invoke(c.Game);
+        if (defines.Length == 0 && variant is null)
             return;
         var existing = IniFile.Load(Path.Combine(c.GameDir, "ReShade.ini")).Get("GENERAL", "PreprocessorDefinitions") ?? "";
         string Key(string d) => d.Split('=')[0].Trim();
-        var merged = existing.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        var merged = string.Join(",", existing.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Where(d => !defines.Any(n => Key(n).Equals(Key(d), StringComparison.OrdinalIgnoreCase)))
-            .Concat(defines);
-        c.Ini("ReShade.ini", "GENERAL", "PreprocessorDefinitions", string.Join(",", merged), "Tiefenpuffer-Einstellungen für dieses Spiel");
+            .Concat(defines));
+        if (variant is not null)
+        {
+            merged = DepthAssistant.MergeDefines(merged, variant);
+            c.Ini("ReShade.ini", "DEPTH", "DepthCopyBeforeClears", variant.CopyBeforeClears ? "1" : "0", $"Tiefenpuffer-Assistent: {variant.Label}");
+        }
+        c.Ini("ReShade.ini", "GENERAL", "PreprocessorDefinitions", merged, "Tiefenpuffer-Einstellungen für dieses Spiel");
     }
 
     /// <summary>Einstellungsdateien des Spiels (z. B. MSAA aus); nur wenn die Datei schon existiert.</summary>

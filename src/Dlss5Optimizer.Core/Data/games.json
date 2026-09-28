@@ -126,6 +126,159 @@
       ]
     },
     {
+      "name": "Black Mesa",
+      "steamAppIds": [ "362890" ],
+      "exeNames": [ "bms.exe" ],
+      "apis": "D3D9",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "excludedRoutes": [ "LegacyFeeder" ],
+      "wrapperExtraDirs": [ "bin" ],
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "1" },
+      "notes": [
+        "Getestet (dlss5-classic-games): DXVK im Hauptordner und in bin\\ (Source lädt die d3d9.dll von dort). dgVoodoo stürzt ab (LockVertexBuffer)."
+      ]
+    },
+    {
+      "name": "Dark Messiah of Might and Magic",
+      "steamAppIds": [ "2100" ],
+      "exeNames": [ "mm.exe" ],
+      "apis": "D3D9",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "wrapperExtraDirs": [ "bin" ],
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "0" },
+      "notes": [
+        "Getestet (dlss5-classic-games): DXVK im Hauptordner und in bin\\ (shaderapidx9.dll lädt d3d9.dll von dort).",
+        "Nur Einzelspieler starten."
+      ]
+    },
+    {
+      "name": "Far Cry",
+      "steamAppIds": [ "13520" ],
+      "exeNames": [ "FarCry.exe" ],
+      "mainExe": "Bin32/FarCry.exe",
+      "apis": "D3D9, OpenGL",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "1" },
+      "notes": [
+        "Getestet (dlss5-classic-games): DXVK in Bin32\\ neben FarCry.exe; der Renderer XRenderD3D9.dll lädt die d3d9.dll.",
+        "Widescreen-Fixes (version.dll/.asi) vertragen sich damit."
+      ]
+    },
+    {
+      "name": "Need for Speed Underground / Most Wanted (2005)",
+      "exeNames": [ "speed.exe" ],
+      "apis": "D3D9",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "1" },
+      "notes": [
+        "Getestet (dlss5-classic-games): DXVK-Weg. Auflösung im Spielmenü wählen; Widescreen-Fixes (dinput8.dll + scripts\\*.asi) vertragen sich damit."
+      ]
+    },
+    {
+      "name": "Need for Speed Underground 2",
+      "exeNames": [ "speed2.exe" ],
+      "apis": "D3D9",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "1" },
+      "notes": [
+        "Getestet (dlss5-classic-games): DXVK-Weg. Auflösung im Spielmenü wählen."
+      ]
+    },
+    {
+      "name": "BloodRayne 2: Terminal Cut",
+      "namePattern": "^BloodRayne 2",
+      "apis": "D3D9",
+      "defaultApi": "D3D9",
+      "preferredRoute": "LegacyDxvkFeeder",
+      "excludedRoutes": [ "LegacyFeeder", "LegacyD3D8Dxvk" ],
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "1" },
+      "notes": [
+        "Getestet (dlss5-classic-games): Die mitgelieferte d3d8.dll übersetzt schon nach DirectX 9 – sie bleibt, DXVK kommt als d3d9.dll dahinter. dgVoodoo lässt das Spiel abstürzen."
+      ]
+    },
+    {
+      "name": "Deus Ex: Human Revolution",
+      "steamAppIds": [ "28050" ],
+      "exeNames": [ "dxhr.exe" ],
+      "apis": "D3D11",
+      "defaultApi": "D3D11",
+      "preferredRoute": "Feeder",
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "feedConfig": { "hdr": "-1", "depth_inverted": "-1", "flags": "-1", "log_frames": "3", "host_window": "1" },
+      "notes": [
+        "Getestet (dlss5-classic-games): 32-Bit-DirectX-11, kein Übersetzer nötig – ReShade als dxgi.dll, der Feeder schickt die Bilder an den 64-Bit-Hilfsprozess."
+      ]
+    },
+    {
+      "name": "DOOM (2016)",
+      "steamAppIds": [ "379720" ],
+      "exeNames": [ "DOOMx64vk.exe", "DOOMx64.exe" ],
+      "mainExe": "DOOMx64vk.exe",
+      "apis": "Vulkan, OpenGL",
+      "defaultApi": "Vulkan",
+      "apiExeVariants": [
+        { "api": "Vulkan", "exe": "DOOMx64vk.exe" },
+        { "api": "OpenGL", "exe": "DOOMx64.exe" }
+      ],
+      "preferredRoute": "Feeder",
+      "reShadeDefines": [
+        "RESHADE_DEPTH_LINEARIZATION_FAR_PLANE=1000.0",
+        "RESHADE_DEPTH_INPUT_IS_UPSIDE_DOWN=0",
+        "RESHADE_DEPTH_INPUT_IS_REVERSED=1",
+        "RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=0"
+      ],
+      "notes": [
+        "Getestet (dlss5-classic-games): Vulkan, 64 Bit – kein Hilfsprozess nötig. Im Spiel Vulkan wählen (DOOMx64vk.exe).",
+        "Nur die Kampagne mit Mods spielen."
+      ]
+    },
+    {
       "name": "DOOM Eternal",
       "steamAppIds": [ "782330" ],
       "exeNames": [ "DOOMEternalx64vk.exe" ],

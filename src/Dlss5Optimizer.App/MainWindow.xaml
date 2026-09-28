@@ -182,6 +182,8 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
+                                    <TextBlock Text="{Binding OutcomesText}" Style="{StaticResource Muted}" Margin="0,6,0,0"
+                                               Visibility="{Binding OutcomesText, Converter={StaticResource NullToCollapsed}}" />
                                     <TextBlock Text="{Binding InstalledText}" Foreground="{StaticResource InfoBrush}" Margin="0,6,0,0"
                                                Visibility="{Binding InstalledText, Converter={StaticResource NullToCollapsed}}" />
                                     <ItemsControl ItemsSource="{Binding IntegrityProblems}">
@@ -200,6 +202,10 @@
                                 <Button Content="Rückgängig" Command="{Binding UninstallCommand}" />
                                 <Button Content="Reparieren" Command="{Binding RepairCommand}" ToolTip="Nach einem Spiel-Update erneut installieren" />
                                 <Button Content="Spiel starten" Command="{Binding LaunchGameCommand}" />
+                                <Button Content="Tiefenpuffer-Assistent" Command="{Binding DepthAssistantCommand}"
+                                        ToolTip="Wenn die Diagnose „Tiefe ist flach“ meldet: probiert die nächste Tiefenpuffer-Einstellung aus." />
+                                <Button Content="Testergebnisse vergessen" Command="{Binding ForgetOutcomesCommand}"
+                                        ToolTip="Gemerkte Erfolge/Fehlschläge dieses Spiels löschen – alle Routen werden wieder berücksichtigt." />
                                 <Button Content="Diagnose" Command="{Binding DiagnoseCommand}"
                                         ToolTip="Nach dem Spielstart prüfen, ob Übersetzer, ReShade, Feeder und DLSS 5 wirklich laufen (Logs + Absturzprotokoll)." />
                                 <Button Content="Messen" Command="{Binding MeasureCommand}"

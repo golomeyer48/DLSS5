@@ -209,9 +209,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void Recompute(GameItemViewModel g)
     {
-        var cal = _s.Settings.Calibrations.GetValueOrDefault(g.Analysis.Game.Key);
-        var rec = _s.Engine.Recommend(g.Analysis, _s.System, CurrentPreferences(), cal);
+        var key = g.Analysis.Game.Key;
+        var cal = _s.Settings.Calibrations.GetValueOrDefault(key);
+        var outcomes = _s.Settings.RouteOutcomes.GetValueOrDefault(key);
+        var rec = _s.Engine.Recommend(g.Analysis, _s.System, CurrentPreferences(), cal, outcomes);
         g.SetRecommendation(rec);
+        g.OutcomesText = outcomes is { Count: > 0 }
+            ? "Bei dir getestet: " + string.Join(", ", outcomes.Select(o => $"{RouteCatalog.Get(o.Key).Name} {(o.Value.Worked ? "✓" : "✗")}"))
+            : "";
         if (g.Analysis.GameDir is { } dir)
         {
             g.Installed = _s.Installer.ReadManifest(dir);
@@ -228,6 +233,11 @@ public sealed partial class MainViewModel : ObservableObject
         var candidate = game?.SelectedCandidate?.Candidate;
         if (game is null || candidate is null)
             return;
+        await InstallCandidateAsync(game, candidate);
+    }
+
+    private async Task InstallCandidateAsync(GameItemViewModel game, Candidate candidate)
+    {
         if (game.Recommendation?.Blocked == true)
         {
             _dialogs.Info("Gesperrt", game.Recommendation.BlockedReason!);
@@ -249,6 +259,12 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         if (!await EnsureComponentsAsync(candidate.Missing.Select(m => m.Id).ToList()))
+            return;
+
+        if (candidate.Route.Id == RouteId.LegacyD3D8Dxvk && !CrashLog.HasD3dx9Runtime(game.Analysis.Bitness != Bitness.X64)
+            && !_dialogs.Confirm("DirectX-Laufzeit fehlt",
+                "d3d8to9 braucht D3DX9 aus der alten DirectX-Laufzeit (d3dx9_43.dll), die hier fehlt. Ohne sie startet das Spiel nicht.\n\n"
+                + "Bitte die „DirectX End-User Runtime“ von Microsoft installieren (microsoft.com/download, ID 35).\n\nTrotzdem jetzt installieren?", warning: true))
             return;
 
         InstallPlan plan;
@@ -458,9 +474,12 @@ public sealed partial class MainViewModel : ObservableObject
         Recompute(g);
     }
 
-    /// <summary>Prüft nach einem Spielstart, ob die ganze Kette greift (Logs + Windows-Absturzprotokoll).</summary>
+    /// <summary>
+    /// Prüft nach einem Spielstart, ob die ganze Kette greift (Logs + Windows-Absturzprotokoll),
+    /// merkt sich das Ergebnis und bietet bei einem abgestürzten Übersetzer den anderen an.
+    /// </summary>
     [RelayCommand]
-    private void Diagnose()
+    private async Task DiagnoseAsync()
     {
         var g = SelectedGame;
         if (g?.Analysis.GameDir is not { } dir || g.Analysis.MainExe is not { } exe)
@@ -471,27 +490,42 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var checks = InstallDiagnostics.Check(dir, manifest, Path.GetFileName(exe));
-        var lines = checks.Select(c => $"{Symbol(c.Status)} {c.Title}\n   {c.Detail}").ToList();
-        var crashes = CrashLog.RecentCrashes(Path.GetFileName(exe), manifest.InstalledAt.LocalDateTime);
-        if (crashes.Count > 0)
+        var (crashes, crashLines) = CrashLog.Recent(Path.GetFileName(exe), manifest.InstalledAt.LocalDateTime);
+        var report = InstallDiagnostics.Evaluate(dir, manifest, Path.GetFileName(exe), crashes, g.Analysis.DbEntry);
+        var lines = report.Checks.Select(c => $"{Symbol(c.Status)} {c.Title}\n   {c.Detail}").ToList();
+        if (crashLines.Count > 0)
         {
             lines.Add("");
             lines.Add("✗ Windows-Ereignisprotokoll seit der Installation:");
-            lines.AddRange(crashes.Select(c => "   " + c));
+            lines.AddRange(crashLines.Select(c => "   " + c));
         }
         foreach (var problem in g.IntegrityProblems)
             lines.Add($"⚠ {problem} – „Reparieren“ installiert neu.");
-
-        bool allOk = checks.All(c => c.Status == DiagnosticStatus.Ok) && crashes.Count == 0 && g.IntegrityProblems.Count == 0;
-        var header = allOk
-            ? "Alles greift: DLSS 5 läuft in diesem Spiel."
-            : checks.Any(c => c.Status == DiagnosticStatus.NotRunYet)
-                ? "Noch nicht vollständig geprüft – Spiel starten, ein paar Sekunden spielen, dann erneut „Diagnose“."
-                : "Es gibt Probleme. Die Hinweise unten sagen, woran es liegt.";
-        _dialogs.ShowList($"Diagnose – {g.Name}", header, lines);
-        foreach (var c in checks)
+        foreach (var c in report.Checks)
             Log($"{g.Name}: Diagnose {c.Title}: {c.Status}");
+
+        var route = manifest.Config.Route;
+        if (report.Verdict == DiagnosticVerdict.Working)
+            RememberOutcome(g, route, worked: true, "Diagnose: alles grün");
+        else if (report.Verdict == DiagnosticVerdict.TranslatorFailed)
+            RememberOutcome(g, route, worked: false, "Übersetzer abgestürzt");
+        else if (report.Verdict == DiagnosticVerdict.WrapperBypassed)
+            RememberOutcome(g, route, worked: false, "Spiel lädt die System-d3d9.dll");
+
+        if (report.SwitchTo is { } alternative)
+        {
+            lines.Add("");
+            lines.Add($"→ Vorschlag: auf „{RouteCatalog.Get(alternative).Name}“ umstellen.");
+            _dialogs.ShowList($"Diagnose – {g.Name}", report.Summary, lines);
+            if (_dialogs.Confirm("Übersetzer wechseln",
+                    $"{report.Summary}\n\nJetzt auf „{RouteCatalog.Get(alternative).Name}“ umstellen? Die bisherige Installation wird dabei vollständig zurückgenommen."))
+                await SwitchRouteAsync(g, alternative);
+            else
+                Recompute(g);
+            return;
+        }
+        _dialogs.ShowList($"Diagnose – {g.Name}", report.Summary, lines);
+        Recompute(g);
 
         static string Symbol(DiagnosticStatus s) => s switch
         {
@@ -500,6 +534,70 @@ public sealed partial class MainViewModel : ObservableObject
             DiagnosticStatus.Failed => "✗",
             _ => "…",
         };
+    }
+
+    private void RememberOutcome(GameItemViewModel g, RouteId route, bool worked, string reason)
+    {
+        var key = g.Analysis.Game.Key;
+        if (!_s.Settings.RouteOutcomes.TryGetValue(key, out var map))
+            _s.Settings.RouteOutcomes[key] = map = [];
+        map[route] = new RouteOutcome(worked, reason, DateTimeOffset.Now);
+        _s.SaveSettings();
+        Log($"{g.Name}: „{RouteCatalog.Get(route).Name}“ gemerkt als {(worked ? "läuft" : "gescheitert")} ({reason}).");
+    }
+
+    /// <summary>Nimmt die Installation zurück und installiert die beste Konfiguration der anderen Route.</summary>
+    private async Task SwitchRouteAsync(GameItemViewModel g, RouteId target)
+    {
+        Recompute(g); // die gescheiterte Route ist jetzt ausgeschlossen
+        var candidate = g.Candidates.Select(c => c.Candidate).FirstOrDefault(c => c.Route.Id == target);
+        if (candidate is null)
+        {
+            _dialogs.Info("Wechsel nicht möglich", $"Für „{RouteCatalog.Get(target).Name}“ gibt es in diesem Spiel keine passende Konfiguration.");
+            return;
+        }
+        await InstallCandidateAsync(g, candidate);
+        if (g.Installed?.Config.Route == target)
+            _dialogs.Info("Umgestellt", "Spiel erneut starten, eine Minute spielen und dann wieder „Diagnose“ klicken.");
+    }
+
+    [RelayCommand]
+    private void ForgetOutcomes()
+    {
+        var g = SelectedGame;
+        if (g is null || !_s.Settings.RouteOutcomes.Remove(g.Analysis.Game.Key))
+            return;
+        _s.SaveSettings();
+        Log($"{g.Name}: Testergebnisse vergessen – alle Routen werden wieder berücksichtigt.");
+        Recompute(g);
+    }
+
+    /// <summary>
+    /// Stellt die nächste Tiefenpuffer-Variante ein (ReShade.ini im Spielordner) und merkt sie sich,
+    /// damit „Reparieren“ sie beibehält. „Rückgängig“ stellt die ursprüngliche ReShade.ini wieder her.
+    /// </summary>
+    [RelayCommand]
+    private void DepthAssistant()
+    {
+        var g = SelectedGame;
+        if (g?.Analysis.GameDir is not { } dir || g.Installed is not { } manifest || !manifest.Config.Route.UsesFeeder())
+        {
+            _dialogs.Info("Tiefenpuffer-Assistent", "Nur für installierte Feeder-Routen (Spiele ohne eigenes DLSS).");
+            return;
+        }
+        var iniPath = Path.Combine(dir, "ReShade.ini");
+        var ini = IniFile.Load(iniPath);
+        var next = Core.Install.DepthAssistant.Next(Core.Install.DepthAssistant.Read(ini));
+        Core.Install.DepthAssistant.Apply(ini, next);
+        ini.Save(iniPath);
+        _s.Settings.DepthVariants[g.Analysis.Game.Key] = next;
+        _s.SaveSettings();
+
+        var (index, count) = Core.Install.DepthAssistant.Position(next);
+        Log($"{g.Name}: Tiefenpuffer-Variante {index}/{count}: {next.Label}.");
+        _dialogs.Info("Tiefenpuffer-Assistent",
+            $"Variante {index} von {count}: {next.Label}.\n\nSpiel neu starten, eine Minute spielen (mit Bewegung) und dann „Diagnose“. "
+            + "Meldet sie beim Tiefenpuffer weiter ✗, noch einmal klicken – nach der letzten Variante geht es von vorn los.");
     }
 
     // ---------------------------------------------------------------- Komponenten

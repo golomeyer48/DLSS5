@@ -45,7 +45,10 @@ public sealed class GameAnalyzer(GameDatabase db)
         var warnings = new List<string>();
 
         var dbEntry = db.Find(game, null);
-        var exe = ExecutableLocator.FindMainExecutable(game.InstallDir, dbEntry?.MainExe ?? game.PreferredExe);
+        string? knownExe = null;
+        if (dbEntry is null && db.FindByAnyExe(ExecutableLocator.EnumerateExecutables(game.InstallDir, maxDepth: 4)) is { } byExe)
+            (dbEntry, knownExe) = byExe;
+        var exe = ExecutableLocator.FindMainExecutable(game.InstallDir, dbEntry?.MainExe ?? knownExe ?? game.PreferredExe);
         dbEntry ??= db.Find(game, exe);
         if (exe is null)
         {
@@ -138,21 +141,29 @@ public sealed class GameAnalyzer(GameDatabase db)
             }
         }
 
+        // Bei Gleichstand (z. B. beide Imports gedeckelt auf 1,0) entscheidet die Spiel-Datenbank.
+        var preferredApi = GraphicsApi.None;
         if (dbEntry is not null)
         {
             evidence.Add($"Spiel-Datenbank: {dbEntry.Name}");
             foreach (var dbApi in dbEntry.Apis.Each())
                 Add(dbApi, 0.5);
             if (dbEntry.DefaultApi != GraphicsApi.None)
+            {
                 Add(dbEntry.DefaultApi, 0.6);
+                preferredApi = dbEntry.DefaultApi;
+            }
             foreach (var variant in dbEntry.ApiExeVariants)
             {
                 if (Path.GetFullPath(Path.Combine(game.InstallDir, variant.Exe)).Equals(Path.GetFullPath(exe), StringComparison.OrdinalIgnoreCase))
+                {
                     Add(variant.Api, 1.0);
+                    preferredApi = variant.Api;
+                }
             }
         }
 
-        var api = BuildApiDetection(scores);
+        var api = BuildApiDetection(scores, preferredApi);
         var upscalers = DetectUpscalers(files, evidence);
         var antiCheat = AntiCheatDetector.Detect(files, exe);
         if (antiCheat.Detected)
@@ -182,11 +193,15 @@ public sealed class GameAnalyzer(GameDatabase db)
         return analysis with { Api = api, Evidence = analysis.Evidence.Concat(probeEvidence).ToList() };
     }
 
-    internal static ApiDetection BuildApiDetection(Dictionary<GraphicsApi, double> scores)
+    internal static ApiDetection BuildApiDetection(Dictionary<GraphicsApi, double> scores, GraphicsApi preferred = GraphicsApi.None)
     {
         if (scores.Count == 0)
             return ApiDetection.Unknown;
-        var ordered = scores.OrderByDescending(kv => kv.Value).ThenByDescending(kv => (int)kv.Key).ToList();
+        var ordered = scores
+            .OrderByDescending(kv => kv.Value)
+            .ThenByDescending(kv => kv.Key == preferred)
+            .ThenByDescending(kv => (int)kv.Key)
+            .ToList();
         var primary = ordered[0];
         var supported = ordered.Where(kv => kv.Value >= SupportThreshold).Aggregate(GraphicsApi.None, (acc, kv) => acc | kv.Key);
         if (supported == GraphicsApi.None)

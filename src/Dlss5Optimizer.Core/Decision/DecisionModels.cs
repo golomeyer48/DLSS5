@@ -12,6 +12,19 @@ public enum RouteId
     Feeder,
     LegacyFeeder,
     LegacyDxvkFeeder,
+    LegacyD3D8Dxvk,
+}
+
+public static class RouteIdExtensions
+{
+    /// <summary>Routen, die DirectX 8/9 über DXVK nach Vulkan übersetzen.</summary>
+    public static bool UsesDxvk(this RouteId id) => id is RouteId.LegacyDxvkFeeder or RouteId.LegacyD3D8Dxvk;
+
+    /// <summary>Routen für DirectX 9 und älter (mit Übersetzer).</summary>
+    public static bool IsLegacy(this RouteId id) => id is RouteId.LegacyFeeder or RouteId.LegacyDxvkFeeder or RouteId.LegacyD3D8Dxvk;
+
+    /// <summary>Routen mit dem DLSS5-Feeder (Spiele ohne eigene Upscaler-Daten).</summary>
+    public static bool UsesFeeder(this RouteId id) => id is RouteId.Feeder || id.IsLegacy();
 }
 
 /// <summary>Woher die Bewegungsvektoren kommen – der wichtigste Qualitätsfaktor für DLSS 5.</summary>
@@ -133,9 +146,18 @@ public sealed record Candidate(
 {
     /// <summary>Installierbar, wenn höchstens automatisch ladbare Komponenten fehlen.</summary>
     public bool Installable => Missing.All(m => m.CanAutoDownload);
+
+    /// <summary>Die Route lief bei diesem Nutzer in diesem Spiel schon (laut Diagnose).</summary>
+    public bool Proven { get; init; }
+
+    /// <summary>Die Spiel-Datenbank empfiehlt diese Route (in diesem Spiel getestet).</summary>
+    public bool Recommended { get; init; }
 }
 
 public sealed record ApiSwitchAdvice(GraphicsApi From, GraphicsApi To, string How);
+
+/// <summary>Was bei diesem Nutzer mit einer Route in einem Spiel passiert ist (aus der Diagnose).</summary>
+public sealed record RouteOutcome(bool Worked, string Reason, DateTimeOffset When);
 
 public sealed record Recommendation(
     Candidate? Best,

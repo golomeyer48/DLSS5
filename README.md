@@ -4,12 +4,13 @@ Windows-Tool, das DLSS 5 (Neural Rendering) in möglichst viele Spiele bringt �
 automatisch die Variante mit der besten Kombination aus Bildqualität und Leistung wählt.
 
 - erkennt, welche Grafik-API ein Spiel wirklich nutzt (DirectX 8–12, Vulkan, OpenGL)
-- wählt die passende Einbindung (nativ, OptiScaler, ReShade-Add-on, dlss5-bridge, Feeder, dgVoodoo2)
+- wählt die passende Einbindung (nativ, OptiScaler, ReShade-Add-on, dlss5-bridge, Feeder, DXVK, d3d8to9, dgVoodoo2)
 - rechnet für jede Kombination aus Upscaling, DLSS-5-Modellauflösung und Frame Generation die zu
   erwartende Bildrate aus und nimmt die beste, die dein Ziel erreicht
 - installiert mit Sicherung und stellt auf Knopfdruck den Originalzustand wieder her
+- prüft nach dem ersten Start, ob alles greift, und stellt bei einem Absturz selbst auf den anderen Übersetzer um
 
-> **Status:** Erste Version. Kern und Installer sind mit 99 Unit-Tests abgedeckt (inklusive kompletter Szenarien für Fallout 3 und New Vegas); die Oberfläche und
+> **Status:** Erste Version. Kern und Installer sind mit 116 Unit-Tests abgedeckt (inklusive kompletter Szenarien für Fallout 3, New Vegas und die Klassiker der Datenbank); die Oberfläche und
 > die Windows-Teile (Registry, PresentMon, Spielstart) sind gebaut, aber noch nicht auf echter
 > Hardware getestet. Bitte zuerst mit einem Einzelspieler-Spiel ausprobieren.
 
@@ -64,7 +65,8 @@ Außerdem werden erkannt:
 | Vulkan mit DLSS | ReShade (Vulkan-Layer) + dlss5-bridge + Add-on | aus dem Spiel | ~1,5 ms, zwei DLSS-Sitzungen |
 | kein Upscaler (DX10–12, Vulkan, OpenGL) | ReShade + **DLSS5-Feeder** + LumeniteFX + Add-on | geschätzt (Schlieren möglich) | ~1,2 ms |
 | DX9 (z. B. Fallout 3/New Vegas) | **DXVK** → Vulkan → ReShade-Vulkan-Layer → Feeder | geschätzt | ~1,4 ms |
-| DX8, DirectDraw (und DX9, wenn DXVK scheitert) | **dgVoodoo2** → DX11 → Feeder | geschätzt | ~1,6 ms |
+| DX8 | **d3d8to9** → DXVK → Vulkan → Feeder | geschätzt | ~1,5 ms |
+| DirectDraw/DX7 (und DX8/9, wenn der erste Übersetzer scheitert) | **dgVoodoo2** → DX11 → Feeder | geschätzt | ~1,6 ms |
 | Anti-Cheat | **gesperrt** (Bann-Risiko). Freischalten nur ausdrücklich und nur für offline | – | – |
 
 32-Bit-Spiele bekommen einen 64-Bit-Hilfsprozess (`host64\`), weil DLSS nur als 64-Bit-Code existiert.
@@ -95,6 +97,54 @@ hängt, zum Beispiel:
 - „Das Spiel lädt die System-d3d9.dll“
 - „nur Transporttest“
 - „0xbad00001 – Modell passt nicht“
+
+### Weitere Klassiker, DirectX 8 und Selbsthilfe
+
+**Spiel-Datenbank.** Neben Fallout 3 und New Vegas kennt das Tool diese Spiele mit der Konfiguration,
+die in [dlss5-classic-games](https://github.com/perseval-BLR/dlss5-classic-games) als laufend
+bestätigt ist:
+
+| Spiel | API | Route | Besonderheit |
+|---|---|---|---|
+| Black Mesa | DX9, 32 Bit | DXVK | `d3d9.dll` auch in `bin\`, dgVoodoo ausgeschlossen |
+| Dark Messiah of Might and Magic | DX9, 32 Bit | DXVK | `d3d9.dll` auch in `bin\` |
+| Far Cry (2004) | DX9 (auch OpenGL) | DXVK | Start über `Bin32\FarCry.exe`, nicht den größeren Editor |
+| Need for Speed Underground / Most Wanted (2005) / Underground 2 | DX9, 32 Bit | DXVK | – |
+| BloodRayne 2: Terminal Cut | DX8 mit eigener DX9-Brücke | DXVK | d3d8to9 und dgVoodoo ausgeschlossen |
+| Deus Ex: Human Revolution | DX11, 32 Bit | Feeder | ohne Übersetzer |
+| DOOM (2016) | Vulkan (auch OpenGL) | Feeder | nimmt die Vulkan-EXE |
+
+Die Datenbank-Empfehlung schlägt eine nur geschätzt schnellere Route; eine Route, die bei dir schon
+lief, schlägt beides.
+
+**DirectX 8.** Reine DX8-Spiele laufen jetzt über [d3d8to9](https://github.com/crosire/d3d8to9)
+(von crosire, dem ReShade-Autor) und dann über dieselbe DXVK-Kette wie DX9. dgVoodoo bleibt als
+Ausweichroute. d3d8to9 braucht die alte **DirectX End-User Runtime** (`d3dx9_43.dll`); fehlt sie,
+warnt das Tool vor der Installation.
+
+**Automatischer Übersetzer-Wechsel.** „Diagnose“ liest das Windows-Absturzprotokoll mit. Stürzt das
+Spiel in `d3d9.dll`, `d3d8.dll` oder `ddraw.dll` ab, ist der Übersetzer schuld. Das Tool bietet dann an,
+auf den anderen umzustellen: DXVK ↔ dgVoodoo bzw. d3d8to9 ↔ dgVoodoo. Es nimmt die alte Installation
+vollständig zurück und installiert die neue. Das Ergebnis wird pro Spiel gemerkt:
+- Gescheiterte Routen werden nicht mehr vorgeschlagen.
+- Eine Route, bei der die Diagnose alles grün meldet, wird bevorzugt.
+
+„Testergebnisse vergessen“ setzt das zurück. Abstürze in anderen Modulen werden **nicht** dem
+Übersetzer angelastet.
+
+**Bewegungsvektoren und Tiefe prüfen.** Der Feeder schreibt nach 600 Bildern Stichproben ins Log.
+Die Diagnose wertet sie aus:
+- *Bewegungsvektoren:* Bleiben sie in zwei Proben bei (fast) 0 %, bekommt DLSS keine Bewegung. Meist ist
+  Lumenite nicht aktiv oder steht nicht über `DLSS5_Feed`.
+- *Tiefe:* Eine flache oder leere Tiefe heißt, ReShade liest den falschen Puffer.
+
+**Tiefenpuffer-Assistent.** Stellt nacheinander die sechs üblichen Kombinationen ein:
+- `DepthCopyBeforeClears` an/aus
+- Tiefe umgekehrt ja/nein
+- Bild auf dem Kopf ja/nein
+
+Nach jedem Klick: Spiel neu starten, eine Minute spielen, „Diagnose“. Die gefundene Variante bleibt
+auch nach „Reparieren“ erhalten. Andere Einträge in der ReShade.ini werden nicht angefasst.
 
 ### 3. Leistungsmodell und Auswahl
 
@@ -156,6 +206,7 @@ Die Hebel, sortiert nach Wirkung:
 | `nvngx_dlssnr.dll` | NVIDIA | aus dem installierten Treiber |
 | `nvngx_dlss.dll` | NVIDIA DLSS SDK | aus einem installierten Spiel, sonst von github.com/NVIDIA/DLSS |
 | DXVK | zlib | GitHub-Releases |
+| d3d8to9 | BSD-2 | GitHub-Releases (crosire/d3d8to9) |
 | ReShade-Shader-Header (`ReShade.fxh` …) | BSD-3 | crosire/reshade-shaders (Zweig „slim“) |
 | **RenoDX DLSS 5** | Closed Source | neueste **stabile** Version aus dem Community-Spiegel (RankFTW/rhi-repo) nach extra Warnung, oder Import |
 | **Deep Fried Chicken** | Closed Source, Weitergabe untersagt | nur **Import** (Discord des Autors) |
@@ -201,6 +252,14 @@ dotnet publish src/Dlss5Optimizer.App -c Release -o publish    # Single-File-EXE
   Für New Vegas sind die Tiefenpuffer-Werte von Fallout 3 übernommen (gleiche Engine). Die
   Bewegungsvektoren sind geschätzt, deshalb sind Schlieren bei schnellen Drehungen möglich; HUD und
   Pip-Boy werden mitbearbeitet.
+- **Weitere Klassiker:** Aus der Referenzliste fehlen bewusst:
+  - *OpenGL-Spiele* (OpenMW, Quake III, Serious Sam, Jedi Academy, Riddick, DOOM 3 BFG): Sie brauchen
+    die VORT-Shader für Bewegungsvektoren (Lumenite liefert unter OpenGL 0 %) und RenoDX 4.60. Beides
+    lädt das Tool nicht; die Feeder-Route warnt davor.
+  - *GRID* braucht laut Referenz eine Sonder-DXVK (2.7.1 „addon_fix“) für 4K.
+  - *Half-Life 2, Mass Effect LE, Split/Second, NFS Shift/ProStreet* laufen über die allgemeine
+    Erkennung (DX9 → DXVK bzw. DX11 → Feeder), haben aber keinen eigenen Eintrag mit geprüften
+    Tiefenwerten.
 - **Messwerte:** Die Leistungswerte stammen aus wenigen Spielen und zum Teil aus Zweitquellen;
   die Vorhersagen sind vor dem ersten „Messen“ Schätzungen.
 - **Community-Mods:** Sie ändern sich wöchentlich. Dateinamen und INI-Schlüssel stehen deshalb in
@@ -230,6 +289,7 @@ dotnet publish src/Dlss5Optimizer.App -c Release -o publish    # Single-File-EXE
   - [dlss5-classic-games](https://github.com/perseval-BLR/dlss5-classic-games) (u. a. `OLD-GAMES-GOTCHAS.en.md`)
   - [FNV-DLSS5](https://www.nexusmods.com/newvegas/mods/99411)
   - [DXVK](https://github.com/doitsujin/dxvk)
+  - [d3d8to9](https://github.com/crosire/d3d8to9)
   - [reshade-shaders (slim)](https://github.com/crosire/reshade-shaders/tree/slim)
 - Vergleichbare Tools:
   - [DLSS5-Swapper](https://github.com/rakanki911/DLSS5-Swapper)

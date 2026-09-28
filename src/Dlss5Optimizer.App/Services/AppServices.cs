@@ -45,7 +45,10 @@ public sealed class AppServices
             ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
             : null);
         Availability = new ComponentAvailability(Catalog, Store, DlssNrModel, DlssRuntime);
-        Planner = new RoutePlanner(Availability, Store);
+        Planner = new RoutePlanner(Availability, Store)
+        {
+            DepthOverride = game => Settings.DepthVariants.GetValueOrDefault(game.Game.Key),
+        };
         System = WindowsSystem.Read();
     }
 

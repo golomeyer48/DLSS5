@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Dlss5Optimizer.Core.Decision;
+using Dlss5Optimizer.Core.Install;
 using Dlss5Optimizer.Core.Models;
 
 namespace Dlss5Optimizer.Core;
@@ -16,6 +17,12 @@ public sealed class AppSettings
 
     /// <summary>Pro Spiel die im Testlauf ermittelte API.</summary>
     public Dictionary<string, GraphicsApi> ProbedApis { get; set; } = [];
+
+    /// <summary>Pro Spiel: welche Routen bei diesem Nutzer liefen oder scheiterten.</summary>
+    public Dictionary<string, Dictionary<RouteId, RouteOutcome>> RouteOutcomes { get; set; } = [];
+
+    /// <summary>Pro Spiel die mit dem Tiefenpuffer-Assistenten gewählte Variante.</summary>
+    public Dictionary<string, DepthVariant> DepthVariants { get; set; } = [];
 
     /// <summary>Optional: eigener Pfad zu PresentMon.exe.</summary>
     public string? PresentMonPath { get; set; }

@@ -269,13 +269,15 @@ public class DiagnosticsTests
         var (dir, m) = Installed(t, RouteId.LegacyDxvkFeeder);
         t.File("game/FalloutNV_d3d9.log", "info:  DXVK: v3.0.2\ninfo:  D3D9DeviceEx::D3D9DeviceEx");
         t.File("game/ReShade.log", "INFO | Initializing crosire's ReShade version '6.8.0'\nINFO | Loaded add-on \"DLSS 5 Feed\"");
-        t.File("game/dlss5-feed.log", "config: mode=2\nshared set ready (Vulkan): 2560x1440\nframe 600 delivered");
+        t.File("game/dlss5-feed.log", "config: mode=2\nshared set ready (Vulkan): 2560x1440\nframe 600 delivered\n"
+                                       + "MV probe (centre 64x64, frame 600): mean |mv| 1.8 px, max 9.5 px, 71% non-zero\n"
+                                       + "Depth probe (4x 32x32, frame 600): min 0.02, max 0.97, mean 0.41, variance 0.0612, 100% finite");
         t.File("game/host64/dlss5-feed-host.log", "feature ready: 2560x1440 DLAA\nframe 600 evaluated");
         t.File("game/host64/ReShade.log", "feature 18 created via the signed snippet\ninline feature 18 evaluation succeeded (count=60)");
 
         var checks = InstallDiagnostics.Check(dir, m, "FalloutNV.exe");
 
-        Assert.Equal(5, checks.Count);
+        Assert.Equal(7, checks.Count);
         Assert.All(checks, c => Assert.Equal(DiagnosticStatus.Ok, c.Status));
     }
 

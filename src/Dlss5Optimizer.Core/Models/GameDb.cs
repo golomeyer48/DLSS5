@@ -48,6 +48,12 @@ public sealed record GameDbEntry
     /// <summary>Starter, die bevorzugt werden, wenn vorhanden (Script Extender wie nvse_loader.exe).</summary>
     public string[] LaunchExes { get; init; } = [];
 
+    /// <summary>
+    /// Weitere Ordner (relativ zur EXE), in die der Übersetzer zusätzlich muss – Source-Spiele laden
+    /// shaderapidx9.dll aus bin\ und damit auch die d3d9.dll von dort.
+    /// </summary>
+    public string[] WrapperExtraDirs { get; init; } = [];
+
     /// <summary>Hinweis für 32-Bit-Spiele ohne Large-Address-Aware-Flag (welcher 4GB-Patch passt).</summary>
     public string? LargeAddressHint { get; init; }
 
@@ -118,6 +124,22 @@ public sealed class GameDatabase
 
         return _entries.FirstOrDefault(e =>
             e.NamePattern is { } p && Regex.IsMatch(game.Name, p, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+    }
+
+    /// <summary>
+    /// Sucht unter allen EXE-Dateien eines Spielordners eine, die die Datenbank kennt – für Spiele,
+    /// deren eigentliche EXE klein ist (Far Cry: 32-KB-Starter neben dem großen Editor).
+    /// </summary>
+    public (GameDbEntry Entry, string Exe)? FindByAnyExe(IEnumerable<string> exePaths)
+    {
+        foreach (var exe in exePaths)
+        {
+            var name = Path.GetFileName(exe);
+            var entry = _entries.FirstOrDefault(e => e.ExeNames.Any(x => x.Equals(name, StringComparison.OrdinalIgnoreCase)));
+            if (entry is not null)
+                return (entry, exe);
+        }
+        return null;
     }
 
     private sealed record GameDbFile(List<GameDbEntry> Games);

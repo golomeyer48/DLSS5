@@ -20,6 +20,7 @@ public static class RouteCatalog
         public const string DeepFriedChicken = "deep-fried-chicken";
         public const string DgVoodoo = "dgvoodoo2";
         public const string Dxvk = "dxvk";
+        public const string D3D8To9 = "d3d8to9";
         public const string ReShadeHeaders = "reshade-headers";
         public const string DlssNrModel = "nvngx-dlssnr";
         public const string DlssRuntime = "nvngx-dlss";
@@ -93,7 +94,12 @@ public static class RouteCatalog
                 ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
                 NeuralConsumer,
             ],
-            Caveats: ["Geschätzte Bewegungsvektoren: Schlieren bei schneller Bewegung, dünne Objekte werden weicher.", "Das HUD wird mitbearbeitet."],
+            Caveats:
+            [
+                "Geschätzte Bewegungsvektoren: Schlieren bei schneller Bewegung, dünne Objekte werden weicher.",
+                "Das HUD wird mitbearbeitet.",
+                "OpenGL: LumeniteFX lieferte in Referenztests keine Bewegungsvektoren – die Diagnose zeigt das („MV probe 0 %“).",
+            ],
             ModelScaleComponent: Ids.Feeder,
             ModelScaleApis: GraphicsApi.D3D11,
             SmoothMotionIncompatibleApis: GraphicsApi.Vulkan),
@@ -138,7 +144,42 @@ public static class RouteCatalog
                 "ReShade wird als Vulkan-Layer registriert – aktiv nur in Spielen mit ReShade.ini neben der EXE.",
             ],
             SmoothMotionIncompatibleApis: GraphicsApi.D3D9),
+
+        new(RouteId.LegacyD3D8Dxvk, "d3d8to9 + DXVK + DLSS5-Feeder (DirectX 8)",
+            "d3d8to9 macht aus DirectX 8 ein DirectX 9, DXVK daraus Vulkan – danach wie bei DirectX-9-Spielen über den Feeder und den 64-Bit-Hilfsprozess.",
+            Apis: GraphicsApi.D3D8,
+            Requires64Bit: false, RequiresGameDlss: false, AcceptsFsrOrXess: false,
+            MotionVectors: MotionVectorSource.Estimated, OverheadMs: 1.5, SupportsSuperResolution: false,
+            Components:
+            [
+                ComponentRequirement.One(Ids.D3D8To9, "d3d8to9"),
+                ComponentRequirement.One(Ids.Dxvk, "DXVK"),
+                ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"),
+                ComponentRequirement.One(Ids.Feeder, "DLSS5-Feeder"),
+                ComponentRequirement.One(Ids.LumeniteFx, "LumeniteFX (Bewegungsvektoren)"),
+                ComponentRequirement.One(Ids.ReShadeHeaders, "ReShade-Shader-Header"),
+                ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
+                ComponentRequirement.One(Ids.RenoDx, "RenoDX DLSS 5 Add-on"),
+            ],
+            Caveats:
+            [
+                "Geschätzte Bewegungsvektoren: Schlieren bei schneller Bewegung möglich; das HUD wird mitbearbeitet.",
+                "d3d8to9 braucht die alte DirectX-Laufzeit (D3DX9) – fehlt sie, startet das Spiel nicht.",
+            ],
+            SmoothMotionIncompatibleApis: GraphicsApi.D3D8),
     ];
+
+    /// <summary>
+    /// Der andere Übersetzer für denselben Fall – DXVK und dgVoodoo scheitern jeweils in anderen Spielen.
+    /// </summary>
+    public static RouteId? AlternativeTranslator(RouteId route, GraphicsApi api) => (route, api) switch
+    {
+        (RouteId.LegacyDxvkFeeder, GraphicsApi.D3D9) => RouteId.LegacyFeeder,
+        (RouteId.LegacyD3D8Dxvk, GraphicsApi.D3D8) => RouteId.LegacyFeeder,
+        (RouteId.LegacyFeeder, GraphicsApi.D3D9) => RouteId.LegacyDxvkFeeder,
+        (RouteId.LegacyFeeder, GraphicsApi.D3D8) => RouteId.LegacyD3D8Dxvk,
+        _ => null,
+    };
 
     public static RouteDefinition Get(RouteId id) => All.First(r => r.Id == id);
 }

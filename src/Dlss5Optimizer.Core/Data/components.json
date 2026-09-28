@@ -102,6 +102,16 @@
       "expectedFiles": [ "d3d9.dll" ]
     },
     {
+      "id": "d3d8to9",
+      "name": "d3d8to9",
+      "description": "Übersetzt DirectX 8 nach DirectX 9 (von crosire, dem ReShade-Autor). Dahinter übernimmt DXVK.",
+      "license": "BSD-2-Clause",
+      "homepage": "https://github.com/crosire/d3d8to9",
+      "source": { "type": "GitHub", "repo": "crosire/d3d8to9", "assetPattern": "^d3d8\\.dll$" },
+      "expectedFiles": [ "d3d8.dll" ],
+      "notes": [ "Braucht die DirectX End-User Runtime (Juni 2010) für D3DX9." ]
+    },
+    {
       "id": "reshade-headers",
       "name": "ReShade-Shader-Header",
       "description": "ReShade.fxh, ReShadeUI.fxh und DrawText.fxh – ohne sie kompilieren DLSS5_Feed.fx und LumeniteFX nicht.",

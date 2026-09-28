@@ -67,6 +67,9 @@ public sealed partial class GameItemViewModel(GameAnalysis analysis) : Observabl
     private CandidateRow? _selectedCandidate;
 
     [ObservableProperty]
+    private string _outcomesText = "";
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText), nameof(StatusKind), nameof(InstalledText))]
     private InstallManifest? _installed;
 
