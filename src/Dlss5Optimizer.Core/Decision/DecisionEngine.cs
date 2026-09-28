@@ -132,6 +132,8 @@ public sealed class DecisionEngine
             return gpu;
         if (system.Gpu.DriverVersion is { } drv && drv < SystemInfo.MinDlss5Driver)
             return $"Treiber {drv} ist zu alt. DLSS 5 braucht mindestens {SystemInfo.MinDlss5Driver} (nvngx_dlssnr.dll ist erst ab dieser Version im Treiber).";
+        if (system.Gpu.DriverVersion is { Major: 616, Minor: 64 or 86 })
+            notes.Add($"Treiber {system.Gpu.DriverVersion}: Mit dem DLSS-5-Modell 310.8 sind Abstürze einzelner Add-ons bekannt. Bei Problemen Treiber 616.56 verwenden.");
         if (system.HardwareSchedulingEnabled == false)
             notes.Add("Hardwarebeschleunigte GPU-Planung (HAGS) ist aus – ohne sie gibt es keine DLSS Frame Generation.");
         if (game.AntiCheat.Detected)
@@ -191,6 +193,8 @@ public sealed class DecisionEngine
         {
             if (placement == NrPlacement.PreUpscale && sr is SrMode.Native or SrMode.Dlaa)
                 continue; // ohne Hochskalierung gibt es kein "davor"
+            if (placement == NrPlacement.PreUpscale && scale < 1.0)
+                continue; // Pre-Upscale-Fork flackert mit reduzierter Modellauflösung (bis v0.8.91)
             foreach (var fg in frameGens)
             {
                 var config = new Configuration(route.Id, api, sr, scale, placement, fg);
@@ -208,10 +212,9 @@ public sealed class DecisionEngine
                     continue; // Frame Generation auf zu niedriger Basis: spürbare Verzögerung
 
                 var routeMissing = missing.ToList();
-                if (placement == NrPlacement.PreUpscale && route.PreUpscaleComponent is { } preId && !_isAvailable(preId))
-                    routeMissing.Add(new MissingComponent(preId, "OptiScaler DLSSNR (Pre-Upscale-Fork)", _canAutoDownload(preId)));
-                if (scale < 1.0 && route.ModelScaleComponent is { } scaleId && !_isAvailable(scaleId) && routeMissing.All(m => m.Id != scaleId))
-                    routeMissing.Add(new MissingComponent(scaleId, "Variante mit Modell-Skalierung", _canAutoDownload(scaleId)));
+                if (placement == NrPlacement.PreUpscale && route.PreUpscaleComponent is { } preId && !_isAvailable(preId)
+                    && routeMissing.All(m => m.Id != preId))
+                    routeMissing.Add(new MissingComponent(preId, route.PreUpscaleLabel ?? preId, _canAutoDownload(preId)));
 
                 yield return new Candidate(route, config, prediction, routeMissing, reasons, warnings);
             }

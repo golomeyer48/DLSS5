@@ -89,7 +89,7 @@ public sealed class FrameTimeModel
             : outputMp;
         nrMp *= config.NrScale * config.NrScale;
 
-        double overhead = route.OverheadMs;
+        double overhead = route.OverheadMs + (route.ApiOverheadMs?.GetValueOrDefault(config.Api) ?? 0);
         if (bitness == Bitness.X86 && !route.Official)
             overhead += 0.5; // 32-Bit: Hilfsprozess + gemeinsame Texturen
         if (config.Placement == NrPlacement.PreUpscale)

@@ -97,10 +97,12 @@ public sealed record RouteDefinition(
     bool Experimental = false,
     bool SemiAutomatic = false,
     string? PreUpscaleComponent = null,
+    string? PreUpscaleLabel = null,
     string? ModelScaleComponent = null,
     GraphicsApi ModelScaleApis = GraphicsApi.None,
     GraphicsApi SmoothMotionIncompatibleApis = GraphicsApi.None,
-    bool Official = false);
+    bool Official = false,
+    IReadOnlyDictionary<GraphicsApi, double>? ApiOverheadMs = null);
 
 /// <summary>Eine konkrete, bewertbare Einstellung: Route + API + Parameter.</summary>
 public sealed record Configuration(

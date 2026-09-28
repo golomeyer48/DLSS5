@@ -95,7 +95,7 @@ public class DecisionEngineTests
             new UpscalerInfo(upscalers, null, null, null), ExistingMod.None, antiCheat ?? AntiCheatInfo.None, db, [], []);
 
     private static DecisionEngine Engine(params string[] available) =>
-        new(id => available.Contains(id), id => id is not (RouteCatalog.Ids.RenoDx or RouteCatalog.Ids.DeepFriedChicken or RouteCatalog.Ids.LumeniteFx or RouteCatalog.Ids.OptiScalerModelScale or RouteCatalog.Ids.OptiScalerPreUpscale));
+        new(id => available.Contains(id), id => id is not (RouteCatalog.Ids.RenoDx or RouteCatalog.Ids.DeepFriedChicken or RouteCatalog.Ids.LumeniteFx or RouteCatalog.Ids.OptiScalerPreUpscale));
 
     [Fact]
     public void Dx12WithDlssPrefersOptiScaler()
@@ -152,19 +152,44 @@ public class DecisionEngineTests
     }
 
     [Fact]
-    public void Dx11WithDlssNeedsClosedAddon()
+    public void Dx11WithDlssUsesOptiScalerViaDx11On12()
     {
         var game = Game(GraphicsApi.D3D11, GraphicsApi.D3D11, UpscalerFeature.DlssSuperResolution);
         var rec = Engine().Recommend(game, System5070Ti, new UserPreferences());
 
+        Assert.Equal(RouteId.OptiScalerNr, rec.Best?.Route.Id);
+        Assert.Equal(GraphicsApi.D3D11, rec.Best?.Config.Api);
+    }
+
+    [Fact]
+    public void VulkanOnlyGameNeedsClosedAddon()
+    {
+        var game = Game(GraphicsApi.Vulkan, GraphicsApi.Vulkan, UpscalerFeature.DlssSuperResolution);
+        var engine = new DecisionEngine(_ => false, id => id is not RouteCatalog.Ids.DeepFriedChicken and not RouteCatalog.Ids.RenoDx and not RouteCatalog.Ids.LumeniteFx);
+        var rec = engine.Recommend(game, System5070Ti, new UserPreferences());
+
         // Ohne importiertes Add-on ist nichts installierbar – die Empfehlung nennt, was fehlt.
         Assert.Null(rec.Best);
         Assert.NotNull(rec.BestWithImports);
-        Assert.Equal(RouteId.BridgeD3D11, rec.BestWithImports.Route.Id);
+        Assert.Equal(RouteId.BridgeVulkan, rec.BestWithImports.Route.Id);
         Assert.Contains(rec.BestWithImports.Missing, m => !m.CanAutoDownload);
+        Assert.Contains(rec.Notes, n => n.Contains("importieren"));
 
         var withAddon = Engine(RouteCatalog.Ids.DeepFriedChicken).Recommend(game, System5070Ti, new UserPreferences());
-        Assert.Equal(RouteId.BridgeD3D11, withAddon.Best?.Route.Id);
+        Assert.Equal(RouteId.BridgeVulkan, withAddon.Best?.Route.Id);
+        Assert.All(new[] { withAddon.Best! }.Concat(withAddon.Alternatives).Where(c => c.Config.Api == GraphicsApi.Vulkan),
+            c => Assert.NotEqual(FrameGenMode.SmoothMotion, c.Config.FrameGen));
+    }
+
+    [Fact]
+    public void PreUpscaleNeverCombinedWithReducedModelScale()
+    {
+        var game = Game(GraphicsApi.D3D12, GraphicsApi.D3D12, UpscalerFeature.DlssSuperResolution);
+        var engine = new DecisionEngine(_ => true, _ => true);
+        var rec = engine.Recommend(game, System5070Ti, new UserPreferences(OptimizationProfile.TargetFps, 1000));
+
+        var all = new[] { rec.Best! }.Concat(rec.Alternatives);
+        Assert.DoesNotContain(all, c => c.Config.Placement == NrPlacement.PreUpscale && c.Config.NrScale < 1.0);
     }
 
     [Fact]

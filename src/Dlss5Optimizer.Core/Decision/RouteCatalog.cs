@@ -13,7 +13,6 @@ public static class RouteCatalog
         public const string ReShade = "reshade";
         public const string OptiScalerNr = "optiscaler-dlssnr";
         public const string OptiScalerPreUpscale = "optiscaler-dlssnr-preupscale";
-        public const string OptiScalerModelScale = "optiscaler-dlssnr-d18";
         public const string Bridge = "dlss5-bridge";
         public const string Feeder = "dlss5-feeder";
         public const string LumeniteFx = "lumenitefx";
@@ -22,6 +21,7 @@ public static class RouteCatalog
         public const string DgVoodoo = "dgvoodoo2";
         public const string DlssNrModel = "nvngx-dlssnr";
         public const string DlssRuntime = "nvngx-dlss";
+        public const string PresentMon = "presentmon";
     }
 
     private static readonly ComponentRequirement NeuralConsumer =
@@ -39,15 +39,17 @@ public static class RouteCatalog
             Components: [], Caveats: [], Official: true),
 
         new(RouteId.OptiScalerNr, "OptiScaler + DLSS 5 (DLSSNR)",
-            "OptiScaler hängt den DLSS-5-Pass direkt an den Upscaler des Spiels – auf demselben D3D12-Gerät, ohne Kopien.",
-            Apis: GraphicsApi.D3D12,
+            "OptiScaler hängt den DLSS-5-Pass direkt an den Upscaler des Spiels – unter DX12 auf demselben Gerät ohne Kopien, unter DX11 über dx11on12.",
+            Apis: GraphicsApi.D3D12 | GraphicsApi.D3D11,
             Requires64Bit: true, RequiresGameDlss: true, AcceptsFsrOrXess: true,
             MotionVectors: MotionVectorSource.Engine, OverheadMs: 0.1, SupportsSuperResolution: true,
             Components: [ComponentRequirement.One(Ids.OptiScalerNr, "OptiScaler DLSSNR"), NrModel],
             Caveats: ["Experimentell und nicht von NVIDIA unterstützt."],
             PreUpscaleComponent: Ids.OptiScalerPreUpscale,
-            ModelScaleComponent: Ids.OptiScalerModelScale,
-            ModelScaleApis: GraphicsApi.D3D12),
+            PreUpscaleLabel: "OptiScaler DLSSNR PreSR (wilsjo2)",
+            ModelScaleComponent: Ids.OptiScalerNr,
+            ModelScaleApis: GraphicsApi.D3D12 | GraphicsApi.D3D11,
+            ApiOverheadMs: new Dictionary<GraphicsApi, double> { [GraphicsApi.D3D11] = 0.8 }),
 
         new(RouteId.ReShadeNrAddon, "ReShade + DLSS-5-Add-on",
             "Das DLSS-5-Add-on greift die DLSS-Auswertung des Spiels ab und rechnet den Neural-Pass dahinter.",
@@ -55,7 +57,9 @@ public static class RouteCatalog
             Requires64Bit: true, RequiresGameDlss: true, AcceptsFsrOrXess: false,
             MotionVectors: MotionVectorSource.Engine, OverheadMs: 0.2, SupportsSuperResolution: true,
             Components: [ComponentRequirement.One(Ids.ReShade, "ReShade (mit Add-on-Unterstützung)"), NeuralConsumer],
-            Caveats: ["Closed-Source-Add-on aus der Community; Herkunft ungeprüft."]),
+            Caveats: ["Closed-Source-Add-on aus der Community; Herkunft ungeprüft."],
+            PreUpscaleComponent: Ids.RenoDx,
+            PreUpscaleLabel: "RenoDX DLSS 5 Add-on (NRHookPoint)"),
 
         new(RouteId.BridgeD3D11, "dlss5-bridge (DirectX 11)",
             "Kopiert Farbe, Tiefe und Bewegungsvektoren der DLSS-Auswertung in ein privates D3D12-Gerät und zurück.",
@@ -86,7 +90,7 @@ public static class RouteCatalog
                 ComponentRequirement.One(Ids.Feeder, "DLSS5-Feeder"),
                 ComponentRequirement.One(Ids.LumeniteFx, "LumeniteFX (Bewegungsvektoren)"),
                 ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
-                new("DLSS-5-Add-on (Deep Fried Chicken, RenoDX oder OptiScaler DLSSNR)", [Ids.DeepFriedChicken, Ids.RenoDx, Ids.OptiScalerNr]),
+                NeuralConsumer,
             ],
             Caveats: ["Geschätzte Bewegungsvektoren: Schlieren bei schneller Bewegung, dünne Objekte werden weicher.", "Das HUD wird mitbearbeitet."],
             ModelScaleComponent: Ids.Feeder,
@@ -105,7 +109,7 @@ public static class RouteCatalog
                 ComponentRequirement.One(Ids.Feeder, "DLSS5-Feeder"),
                 ComponentRequirement.One(Ids.LumeniteFx, "LumeniteFX (Bewegungsvektoren)"),
                 ComponentRequirement.One(Ids.DlssRuntime, "nvngx_dlss.dll"),
-                new("DLSS-5-Add-on (Deep Fried Chicken oder RenoDX)", [Ids.DeepFriedChicken, Ids.RenoDx]),
+                NeuralConsumer,
             ],
             Caveats: ["Alte Spiele laufen oft mit fester Bildrate – DLSS 5 kostet dann nur Leistungsreserve."],
             Experimental: true),

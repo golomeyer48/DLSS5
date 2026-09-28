@@ -1,0 +1,137 @@
+{
+  // Komponenten-Katalog. Nichts davon wird mit dem Tool ausgeliefert: Open-Source-Teile lädt das Tool
+  // beim Nutzer direkt aus der Originalquelle, Closed-Source-Teile importiert der Nutzer selbst.
+  "components": [
+    {
+      "id": "reshade",
+      "name": "ReShade 6.8 (Add-on-Version)",
+      "description": "Post-Processing-Injektor mit Add-on-Schnittstelle. Trägt die DLSS-5-Add-ons in DX10/11/12-, OpenGL- und Vulkan-Spiele.",
+      "license": "BSD-3-Clause",
+      "homepage": "https://reshade.me",
+      "source": {
+        "type": "Url",
+        "url": "https://reshade.me/downloads/ReShade_Setup_6.8.0_Addon.exe",
+        "fileName": "ReShade_Setup_6.8.0_Addon.exe"
+      },
+      "extractFromInstaller": [ "ReShade64.dll", "ReShade32.dll", "ReShade64.json", "ReShade32.json" ],
+      "expectedFiles": [ "ReShade64.dll" ],
+      "notes": [ "Manuell: ReShade_Setup_<Version>_Addon.exe von reshade.me importieren – das Tool holt die DLLs selbst heraus." ]
+    },
+    {
+      "id": "optiscaler-dlssnr",
+      "name": "OptiScaler DLSSNR (Dagherbou)",
+      "description": "OptiScaler-Fork, der DLSS 5 Neural Rendering als Pass hinter den Upscaler des Spiels hängt. DirectX 12.",
+      "license": "GPL-3.0",
+      "homepage": "https://github.com/Dagherbou/OptiScaler_DLSSNR",
+      "source": { "type": "GitHub", "repo": "Dagherbou/OptiScaler_DLSSNR", "assetPattern": "^OptiScaler-DLSSNR-.*\\.zip$" },
+      "expectedFiles": [ "OptiScaler.dll", "OptiScaler.ini" ]
+    },
+    {
+      "id": "optiscaler-dlssnr-preupscale",
+      "name": "OptiScaler DLSSNR PreSR/Multipass (wilsjo2)",
+      "description": "Experimenteller Fork: DLSS 5 läuft vor der Super Resolution auf dem kleinen Bild (RunBeforeSR) – etwa halbe Kosten.",
+      "license": "GPL-3.0",
+      "homepage": "https://github.com/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass",
+      "source": { "type": "GitHub", "repo": "wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass", "assetPattern": "^OptiScaler-(NR|DLSSNR)-v[\\d.]+\\.zip$", "includePrerelease": true },
+      "expectedFiles": [ "OptiScaler.dll", "OptiScaler.ini" ],
+      "notes": [ "Alle Releases sind Vorabversionen. Die RTX-40-MFG-Variante wird bewusst nicht geladen." ]
+    },
+    {
+      "id": "dlss5-bridge",
+      "name": "dlss5-bridge",
+      "description": "ReShade-Add-on: bringt die DLSS-Auswertung von DirectX-11- und Vulkan-Spielen in ein D3D12-Gerät, wo der DLSS-5-Pass läuft.",
+      "license": "MIT",
+      "homepage": "https://github.com/NIGos/dlss5-bridge",
+      "source": { "type": "GitHub", "repo": "NIGos/dlss5-bridge", "assetPattern": "^dlss5-bridge\\.addon64$" },
+      "expectedFiles": [ "dlss5-bridge.addon64" ]
+    },
+    {
+      "id": "dlss5-feeder",
+      "name": "DLSS5-Feeder",
+      "description": "ReShade-Add-on für Spiele ohne DLSS: baut aus Tiefe und geschätzten Bewegungsvektoren eine DLAA-Eingabe für DLSS 5.",
+      "license": "MIT",
+      "homepage": "https://github.com/jlrouzies-fr/DLSS5-Feeder",
+      "source": { "type": "GitHub", "repo": "jlrouzies-fr/DLSS5-Feeder", "assetPattern": "^DLSS5-Feeder-[\\d.]+\\.zip$" },
+      "expectedFiles": [ "dlss5-feed.addon64", "DLSS5_Feed.fx" ],
+      "notes": [ "Es kursieren gefälschte, schädliche Feeder-Pakete – das Tool lädt nur aus dem Original-Repo." ]
+    },
+    {
+      "id": "lumenitefx",
+      "name": "LumeniteFX (Bewegungsvektoren)",
+      "description": "ReShade-Shader; die Technik „Lumenite_Kernel“ liefert dem Feeder die Bewegungsvektoren.",
+      "license": "AGNYA (alle Rechte beim Autor; Download direkt vom Autor)",
+      "homepage": "https://github.com/umar-afzaal/LumeniteFX",
+      "source": { "type": "Url", "url": "https://github.com/umar-afzaal/LumeniteFX/archive/refs/heads/mainline.zip", "fileName": "LumeniteFX-mainline.zip" },
+      "expectedFiles": [ "lumenite_Kernel.fx" ]
+    },
+    {
+      "id": "renodx-dlss5",
+      "name": "RenoDX DLSS 5 Add-on",
+      "description": "Closed-Source-ReShade-Add-on, das den DLSS-5-Pass ausführt. Ab 8.x mit eigener DX11-Brücke und Pre-Upscale-Option (NRHookPoint).",
+      "license": "Closed Source, keine Lizenz veröffentlicht",
+      "closedSource": true,
+      "homepage": "https://discord.com/invite/renodx",
+      "source": {
+        "type": "GitHub",
+        "repo": "RankFTW/rhi-repo",
+        "tagPattern": "^renodx-dlss5-\\d",
+        "assetPattern": "^renodx-dlss5.*\\.(zip|addon64)$",
+        "includePrerelease": true,
+        "distribution": "RenoDX-Discord, Kanal #DLSS5 (Spiegel: github.com/RankFTW/rhi-repo)"
+      },
+      "expectedFiles": [ "renodx-dlss5*.addon64" ],
+      "notes": [ "Herkunft und Inhalt sind nicht prüfbar (Closed Source).", "RenoDX vor Version 6 stürzt ab Treiber 616.64 ab." ]
+    },
+    {
+      "id": "deep-fried-chicken",
+      "name": "Deep Fried Chicken",
+      "description": "Closed-Source-ReShade-Add-on, das den DLSS-5-Pass ausführt (vom DLSS5-Feeder empfohlen).",
+      "license": "Closed Source; Weitergabe/Rehosting laut Autor untersagt",
+      "closedSource": true,
+      "homepage": "https://discord.gg/g2v2XGqvR",
+      "source": { "type": "Import", "distribution": "Discord des Autors (discord.gg/g2v2XGqvR) – Version 1.4.8 oder neuer" },
+      "expectedFiles": [ "deep-fried-chicken.addon64", "deep-fried-chicken-nvngx.dll" ],
+      "notes": [ "Darf nicht automatisch geladen werden – bitte die Dateien (oder das Archiv) importieren." ]
+    },
+    {
+      "id": "dgvoodoo2",
+      "name": "dgVoodoo2",
+      "description": "Übersetzt DirectX 8/9 und DirectDraw nach DirectX 11, damit ReShade und der Feeder greifen.",
+      "license": "Freeware",
+      "homepage": "https://github.com/dege-diosg/dgVoodoo2",
+      "source": { "type": "GitHub", "repo": "dege-diosg/dgVoodoo2", "assetPattern": "^dgVoodoo2_[\\d_]+\\.zip$" },
+      "expectedFiles": [ "D3D9.dll", "dgVoodoo.conf" ]
+    },
+    {
+      "id": "nvngx-dlssnr",
+      "name": "DLSS 5 Modell (nvngx_dlssnr.dll)",
+      "description": "NVIDIAs Neural-Rendering-Modell. Wird aus dem installierten Treiber (ab 616.56) übernommen.",
+      "license": "NVIDIA (Teil des Treibers)",
+      "source": { "type": "DriverStore", "fileName": "nvngx_dlssnr.dll" },
+      "expectedFiles": [ "nvngx_dlssnr.dll" ],
+      "notes": [ "Wird nicht aus dem Treiber gefunden? Datei aus dem Treiberpaket importieren." ]
+    },
+    {
+      "id": "nvngx-dlss",
+      "name": "DLSS-Laufzeit (nvngx_dlss.dll)",
+      "description": "DLSS Super Resolution/DLAA. Wird aus einem installierten Spiel übernommen oder bei NVIDIA geladen.",
+      "license": "NVIDIA DLSS SDK",
+      "homepage": "https://github.com/NVIDIA/DLSS",
+      "source": {
+        "type": "GameLibrary",
+        "fileName": "nvngx_dlss.dll",
+        "url": "https://raw.githubusercontent.com/NVIDIA/DLSS/v310.9.1/lib/Windows_x86_64/rel/nvngx_dlss.dll"
+      },
+      "expectedFiles": [ "nvngx_dlss.dll" ]
+    },
+    {
+      "id": "presentmon",
+      "name": "PresentMon",
+      "description": "Intels Messwerkzeug für Bildraten und Latenz (ETW). Wird für Testläufe und Benchmarks gebraucht.",
+      "license": "MIT",
+      "homepage": "https://github.com/GameTechDev/PresentMon",
+      "source": { "type": "GitHub", "repo": "GameTechDev/PresentMon", "assetPattern": "^PresentMon-[\\d.]+-x64\\.exe$" },
+      "expectedFiles": [ "PresentMon*.exe" ]
+    }
+  ]
+}
