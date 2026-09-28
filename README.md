@@ -9,7 +9,7 @@ automatisch die Variante mit der besten Kombination aus Bildqualität und Leistu
   erwartende Bildrate aus und nimmt die beste, die dein Ziel erreicht
 - installiert mit Sicherung und stellt auf Knopfdruck den Originalzustand wieder her
 
-> **Status:** Erste Version. Kern und Installer sind mit 85 Unit-Tests abgedeckt; die Oberfläche und
+> **Status:** Erste Version. Kern und Installer sind mit 86 Unit-Tests abgedeckt; die Oberfläche und
 > die Windows-Teile (Registry, PresentMon, Spielstart) sind gebaut, aber noch nicht auf echter
 > Hardware getestet. Bitte zuerst mit einem Einzelspieler-Spiel ausprobieren.
 

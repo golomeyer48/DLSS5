@@ -426,13 +426,18 @@ public sealed partial class MainViewModel : ObservableObject
 
                 if (g.Installed is { } m && m.Config.Route != RouteId.NativeDlss5 && cals.TryGetValue(api, out var baseCal))
                 {
-                    var route = RouteCatalog.Get(m.Config.Route);
-                    double outMp = _s.System.Display.Megapixels;
-                    double nrMp = (m.Config.Placement == NrPlacement.PreUpscale ? outMp * Math.Pow(FrameTimeModel.ScaleFactor(m.Config.SuperResolution), 2) : outMp)
-                                  * m.Config.NrScale * m.Config.NrScale;
-                    double k = FrameTimeModel.DeriveMsPerMegapixel(baseCal.BaselineFps, fps, nrMp, route.OverheadMs);
-                    cals[api] = baseCal with { NrMsPerMegapixel = k };
-                    Log($"{g.Name}: DLSS 5 kostet hier gemessen {k:0.00} ms pro Megapixel – Vorhersagen sind jetzt kalibriert.");
+                    if (m.Config.FrameGen != FrameGenMode.Off && stats.RenderedFps is null)
+                    {
+                        Log($"{g.Name}: Frame Generation ist aktiv, echte Bilder lassen sich nicht trennen – für die Kalibrierung FG kurz ausschalten und erneut messen.");
+                    }
+                    else
+                    {
+                        var route = RouteCatalog.Get(m.Config.Route);
+                        var model = new FrameTimeModel(_s.System, baseCal);
+                        double k = model.DeriveMsPerMegapixel(route, m.Config, g.Analysis.Bitness, fps);
+                        cals[api] = baseCal with { NrMsPerMegapixel = k };
+                        Log($"{g.Name}: DLSS 5 kostet hier gemessen {k:0.00} ms pro Megapixel – Vorhersagen sind jetzt kalibriert.");
+                    }
                 }
                 else if (g.Installed is null)
                 {

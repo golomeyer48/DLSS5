@@ -74,6 +74,20 @@ public class FrameTimeModelTests
     }
 
     [Fact]
+    public void DerivedCostRoundTripsThroughPrediction()
+    {
+        // Basis bei DLSS Qualität gemessen, DLSS 5 danach mit DLSS Leistung installiert.
+        var model = new FrameTimeModel(Rtx5070Ti4K(), new Calibration(90, SrMode.Quality, GraphicsApi.D3D12));
+        var route = RouteCatalog.Get(RouteId.OptiScalerNr);
+        var config = new Configuration(route.Id, GraphicsApi.D3D12, SrMode.Performance, 0.75, NrPlacement.PostUpscale, FrameGenMode.Off);
+
+        double k = model.DeriveMsPerMegapixel(route, config, Bitness.X64, measuredRenderedFps: 70);
+        var calibrated = new FrameTimeModel(Rtx5070Ti4K(), new Calibration(90, SrMode.Quality, GraphicsApi.D3D12, k));
+
+        Assert.Equal(70, calibrated.Predict(route, config, Bitness.X64, 100).RenderedFps, 3);
+    }
+
+    [Fact]
     public void DerivesCostFromTwoMeasurements()
     {
         double k = FrameTimeModel.DeriveMsPerMegapixel(180, 80, 3840 * 2160 / 1e6, 0.1);

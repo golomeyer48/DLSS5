@@ -79,23 +79,31 @@ public sealed class FrameTimeModel
         return tBase * (1 - GpuBoundFraction + GpuBoundFraction * pixelRatio);
     }
 
-    public Prediction Predict(RouteDefinition route, Configuration config, Bitness bitness, double quality)
+    /// <summary>Megapixel, die das DLSS-5-Modell pro Frame verarbeitet.</summary>
+    public double NrMegapixels(Configuration config)
     {
         double outputMp = _system.Display.Megapixels;
-        double tRender = BaselineFrameTimeMs(config.SuperResolution, config.Api);
-
         double nrMp = config.Placement == NrPlacement.PreUpscale
             ? outputMp * Math.Pow(ScaleFactor(config.SuperResolution), 2)
             : outputMp;
-        nrMp *= config.NrScale * config.NrScale;
+        return nrMp * config.NrScale * config.NrScale;
+    }
 
+    /// <summary>Fester Aufwand der Route pro Frame (Kopien, Synchronisation, Hilfsprozess).</summary>
+    public static double OverheadMs(RouteDefinition route, Configuration config, Bitness bitness)
+    {
         double overhead = route.OverheadMs + (route.ApiOverheadMs?.GetValueOrDefault(config.Api) ?? 0);
         if (bitness == Bitness.X86 && !route.Official)
             overhead += 0.5; // 32-Bit: Hilfsprozess + gemeinsame Texturen
         if (config.Placement == NrPlacement.PreUpscale)
             overhead += 0.9; // gemessen: Pre-Upscale kostet mehr als das reine Pixelverhältnis
+        return overhead;
+    }
 
-        double tNr = NrMsPerMegapixel(route) * nrMp + overhead;
+    public Prediction Predict(RouteDefinition route, Configuration config, Bitness bitness, double quality)
+    {
+        double tRender = BaselineFrameTimeMs(config.SuperResolution, config.Api);
+        double tNr = NrMsPerMegapixel(route) * NrMegapixels(config) + OverheadMs(route, config, bitness);
         double rendered = 1000.0 / (tRender + tNr);
         double displayed = rendered * FrameGenMultiplier(config.FrameGen);
         if (config.FrameGen != FrameGenMode.Off)
@@ -108,6 +116,18 @@ public sealed class FrameTimeModel
     {
         double fps = 1000.0 / BaselineFrameTimeMs(mode, api);
         return new Prediction(fps, fps, 0, 0, IsEstimate);
+    }
+
+    /// <summary>
+    /// Kehrt <see cref="Predict"/> um: Aus der mit DLSS 5 gemessenen (echt gerenderten) Bildrate und der
+    /// kalibrierten Basis ergeben sich die DLSS-5-Kosten pro Megapixel – auch wenn der Upscaling-Modus
+    /// seit der Basismessung geändert wurde.
+    /// </summary>
+    public double DeriveMsPerMegapixel(RouteDefinition route, Configuration config, Bitness bitness, double measuredRenderedFps)
+    {
+        double tRender = BaselineFrameTimeMs(config.SuperResolution, config.Api);
+        double delta = 1000.0 / measuredRenderedFps - tRender - OverheadMs(route, config, bitness);
+        return Math.Max(0.05, delta / Math.Max(NrMegapixels(config), 0.1));
     }
 
     /// <summary>Leitet die DLSS-5-Kosten pro Megapixel aus zwei Messungen (ohne/mit DLSS 5) ab.</summary>
