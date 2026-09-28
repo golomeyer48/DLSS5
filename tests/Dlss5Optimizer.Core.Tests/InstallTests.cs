@@ -477,3 +477,58 @@ public class RenoDxVersionTests
     public void MajorVersionIgnoresTheFiveInDlss5(string? version, int? major) =>
         Assert.Equal(major, RoutePlanner.RenoDxMajorVersion(version));
 }
+
+public class DiagnosticBundleTests
+{
+    [Fact]
+    public void PacksLogsConfigsListingAndRedactsTheUserName()
+    {
+        using var t = new TempDir();
+        var game = t.Dir("game");
+        TestPe.Write(t.Combine("game/FalloutNV.exe"), TestPe.I386, ["d3d9.dll"]);
+        TestPe.Write(t.Combine("game/host64/dxgi.dll"), TestPe.Amd64, ["kernel32.dll"], exports: ["ReShadeRegisterAddon", "ReShadeUnregisterAddon"]);
+        t.File("game/ReShade.log", @"INFO | Loaded from 'C:\Users\Golo\AppData\Local\x' into C:\Users\Golo\Games\FalloutNV.exe");
+        t.File("game/dlss5-feed.cfg", "mode=2");
+        t.File("game/host64/dlss5-feed-host.log", "frame 600 evaluated");
+        t.File("game/.dlss5-optimizer/manifest.json", "{}");
+        t.File("game/.dlss5-optimizer/backup/d3d9.dll", "enb");
+        t.File("game/savegame.fos", "nicht einpacken");
+        var prefs = t.File("docs/FalloutPrefs.ini", "[Display]\niMultiSample=0");
+
+        var zipPath = DiagnosticBundle.Create(t.Combine("out/diag.zip"), game, @"Spiel: C:\Users\Golo\Games",
+            new DiagnosticBundle.Options(@"C:\Users\Golo", "Golo", [prefs]));
+
+        using var zip = ZipFile.OpenRead(zipPath);
+        var names = zip.Entries.Select(e => e.FullName).ToList();
+        Assert.Contains("zusammenfassung.txt", names);
+        Assert.Contains("dateien.txt", names);
+        Assert.Contains("spiel/ReShade.log", names);
+        Assert.Contains("spiel/dlss5-feed.cfg", names);
+        Assert.Contains("spiel/host64/dlss5-feed-host.log", names);
+        Assert.Contains("spiel/.dlss5-optimizer/manifest.json", names);
+        Assert.Contains("extern/FalloutPrefs.ini", names);
+        Assert.DoesNotContain(names, n => n.Contains("savegame") || n.Contains("backup"));
+
+        string Read(string n) => new StreamReader(zip.GetEntry(n)!.Open()).ReadToEnd();
+        Assert.DoesNotContain("Golo", Read("spiel/ReShade.log"));
+        Assert.Contains("%USERPROFILE%", Read("spiel/ReShade.log"));
+        Assert.DoesNotContain("Golo", Read("zusammenfassung.txt"));
+        var listing = Read("dateien.txt");
+        Assert.Contains("FalloutNV.exe", listing);
+        Assert.Contains("32 Bit", listing);
+        Assert.Contains("ReShade mit Add-ons", listing);
+    }
+
+    [Fact]
+    public void LongLogsKeepOnlyTheEnd()
+    {
+        using var t = new TempDir();
+        var log = t.File("big.log", new string('a', 5000) + "ENDE");
+
+        var tail = DiagnosticBundle.ReadTail(log, 100);
+
+        Assert.EndsWith("ENDE", tail);
+        Assert.Contains("ausgelassen", tail);
+        Assert.True(tail.Length < 200);
+    }
+}

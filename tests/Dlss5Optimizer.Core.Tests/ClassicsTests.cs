@@ -320,3 +320,25 @@ public class ClassicsTests
         }
     }
 }
+
+public class VanishedFilesTests
+{
+    [Fact]
+    public void AddonRemovedByTheVirusScannerIsReported()
+    {
+        using var t = new TempDir();
+        var dir = t.Dir("game");
+        t.File("game/d3d9.dll", "dxvk");
+        var manifest = new InstallManifest(1, DateTimeOffset.Now.AddMinutes(-5),
+            new Configuration(RouteId.LegacyDxvkFeeder, GraphicsApi.D3D9, SrMode.Native, 1, NrPlacement.PostUpscale, FrameGenMode.Off),
+            [new("d3d9.dll", true, "aa"), new(Path.Combine("host64", "renodx-dlss5.addon64"), false, "bb"), new("ReShade.ini", false, "cc")], [], [], []);
+
+        var checks = InstallDiagnostics.Check(dir, manifest, "FalloutNV.exe");
+
+        var files = Assert.Single(checks, c => c.Title == "Installierte Dateien");
+        Assert.Equal(DiagnosticStatus.Failed, files.Status);
+        Assert.Contains("renodx-dlss5.addon64", files.Detail);
+        Assert.Contains("Defender", files.Detail);
+        Assert.DoesNotContain("d3d9.dll", files.Detail);
+    }
+}

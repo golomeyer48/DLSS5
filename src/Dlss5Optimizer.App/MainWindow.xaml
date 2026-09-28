@@ -208,6 +208,8 @@
                                         ToolTip="Gemerkte Erfolge/Fehlschläge dieses Spiels löschen – alle Routen werden wieder berücksichtigt." />
                                 <Button Content="Diagnose" Command="{Binding DiagnoseCommand}"
                                         ToolTip="Nach dem Spielstart prüfen, ob Übersetzer, ReShade, Feeder und DLSS 5 wirklich laufen (Logs + Absturzprotokoll)." />
+                                <Button Content="Diagnose-Paket" Command="{Binding DiagnosticPackageCommand}"
+                                        ToolTip="Logs, Einstellungen, Dateiliste und Systemdaten als ZIP auf den Desktop – zum Weitergeben, wenn etwas nicht läuft." />
                                 <Button Content="Messen" Command="{Binding MeasureCommand}"
                                         ToolTip="Misst das laufende Spiel: tatsächliche API (geladene DLLs) und Bildrate (PresentMon). Erst ohne, dann mit DLSS 5 messen." />
                                 <TextBlock Text="DLSS-Modus im Spiel:" VerticalAlignment="Center" Margin="8,0,6,8" Style="{StaticResource Muted}" />

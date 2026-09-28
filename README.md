@@ -10,9 +10,11 @@ automatisch die Variante mit der besten Kombination aus Bildqualität und Leistu
 - installiert mit Sicherung und stellt auf Knopfdruck den Originalzustand wieder her
 - prüft nach dem ersten Start, ob alles greift, und stellt bei einem Absturz selbst auf den anderen Übersetzer um
 
-> **Status:** Erste Version. Kern und Installer sind mit 116 Unit-Tests abgedeckt (inklusive kompletter Szenarien für Fallout 3, New Vegas und die Klassiker der Datenbank); die Oberfläche und
-> die Windows-Teile (Registry, PresentMon, Spielstart) sind gebaut, aber noch nicht auf echter
-> Hardware getestet. Bitte zuerst mit einem Einzelspieler-Spiel ausprobieren.
+> **Status:** Erste Version. Kern und Installer sind mit 131 Unit-Tests abgedeckt. Bei jedem Build läuft
+> außerdem ein [Selbsttest](#selbsttest) auf einem Windows-Rechner: Er lädt alle Komponenten echt herunter,
+> installiert jede Route in nachgebaute Spiele und nimmt sie wieder zurück. Was dort nicht geht, ist das
+> eigentliche Rendern: DLSS 5 im laufenden Spiel ist nur auf einer echten RTX 50 prüfbar. Bitte zuerst mit
+> einem Einzelspieler-Spiel ausprobieren.
 
 ## Schnellstart
 
@@ -97,6 +99,21 @@ hängt, zum Beispiel:
 - „Das Spiel lädt die System-d3d9.dll“
 - „nur Transporttest“
 - „0xbad00001 – Modell passt nicht“
+- „renodx-dlss5.addon64 verschwunden“: Windows Defender entfernt DLSS-Add-ons manchmal, weil sie sich in NGX einhängen
+
+**„Diagnose-Paket“** packt alles für eine Fehlersuche aus der Ferne in eine ZIP-Datei auf dem Desktop:
+- Logs und Einstellungen der Mods, auch aus `host64\`
+- eine Dateiliste mit Version, 32/64 Bit und Prüfsumme
+- System, Diagnose, Absturzprotokoll und die geladenen Komponenten-Versionen
+
+Spielstände sind nicht dabei, und der Benutzername wird in allen Pfaden ersetzt.
+
+**Der ReShade-Vulkan-Layer** wird wie beim offiziellen ReShade-Setup nach `C:\ProgramData\ReShade` gelegt und
+unter HKLM eingetragen. Es lädt immer nur eine ReShade-Instanz pro Spiel. Daraus folgt:
+- Liegt dort eine Fassung ohne Add-on-Unterstützung, wird sie gesichert (`.bak`) und ersetzt.
+- Ist zusätzlich ein fremder ReShade-Layer registriert, bietet das Tool an, ihn abzumelden.
+
+Aktiv wird der Layer nur in Spielen mit `ReShade.ini` neben der EXE. So prüft es ReShade selbst beim Laden.
 
 ### Weitere Klassiker, DirectX 8 und Selbsthilfe
 
@@ -223,6 +240,50 @@ Auf einer RTX 50 wird das offizielle Modell aus dem Treiber verwendet.
 - **Archive:** werden mit Schutz gegen Pfade außerhalb des Zielordners („Zip Slip“) entpackt.
 - **Anti-Cheat:** Installationen werden gesperrt, außer du schaltest das ausdrücklich frei.
 
+## Selbsttest
+
+`tools/Dlss5Optimizer.SelfTest` läuft bei jedem Build als eigener Job auf `windows-latest`. Das Ergebnis
+steht in der Job-Zusammenfassung und im Artefakt `selftest-report`. Geprüft wird:
+
+1. **Downloads:** Jede Komponente wird aus ihrer Originalquelle geladen und entpackt. Danach wird
+   geprüft, ob die Dateien darin liegen, die der Routen-Planer braucht, in der richtigen Architektur.
+   Ein Beispiel: `dlss5-feed.addon32` muss 32 Bit sein, `host64\dlss5-feed-host64.exe` 64 Bit.
+2. **Installieren und Rückgängig:** Das läuft für 14 nachgebaute Spiele, von Fallout: New Vegas mit ENB
+   über DX8, DirectDraw, 32-Bit-DX11 und OpenGL bis zu DX12 mit DLSS und Deep Fried Chicken. Geprüft wird:
+   - jede Datei mit Prüfsumme und Architektur
+   - jeder INI-Wert
+   - die Pflichtwerte aus den Referenz-Setups, z. B. `mode=2`, `NRStyle=0`, `LoadFromDllMain` und die Reihenfolge Lumenite vor Feeder
+   - dass eigene Einstellungen des Nutzers erhalten bleiben
+   - nach „Rückgängig“ und nach „Reparieren“: der Spielordner muss **Byte für Byte** dem Ausgangszustand entsprechen
+3. **Windows:**
+   - Vulkan-Layer in `C:\ProgramData\ReShade` und in der Registry (32 und 64 Bit)
+   - ein simulierter Absturz in `d3d9.dll` im Ereignisprotokoll: wird erkannt und führt zum Vorschlag dgVoodoo2
+   - die Module eines laufenden 32-Bit-Prozesses werden gelesen
+   - GPU, Anzeige und Spielbibliotheken werden abgefragt, ohne abzustürzen
+
+Heruntergeladene Dateien werden danach gelöscht, nichts davon landet in Artefakten. Deep Fried Chicken
+und das DLSS-5-Modell aus dem Treiber sind dabei Platzhalter. Ohne Internet: `--synthetic`.
+
+Stand des letzten Laufs (28.09.2026): alle Prüfungen bestanden. Diese Versionen wurden geladen:
+
+| Komponente | Version |
+|---|---|
+| ReShade | 6.8.0 |
+| OptiScaler DLSSNR | 0.2.0 |
+| PreSR-Fork | 0.8.91 |
+| dlss5-bridge | 1.4.12 |
+| DLSS5-Feeder | 1.17.0 |
+| RenoDX | 6.5.3 (neueste stabile) |
+| DXVK | 3.1.1 |
+| d3d8to9 | 1.16.0 |
+| dgVoodoo2 | 2.87.5 |
+| PresentMon | 2.6.0 |
+
+```
+dotnet run --project tools/Dlss5Optimizer.SelfTest -f net10.0-windows            # echte Downloads
+dotnet run --project tools/Dlss5Optimizer.SelfTest -f net10.0 -- --synthetic       # ohne Internet, auch Linux
+```
+
 ## Aufbau
 
 ```
@@ -234,7 +295,9 @@ src/Dlss5Optimizer.Core     plattformunabhängig, voll getestet
   Install/                  Routen-Planer, Installer mit Backup/Rollback, INI-Editor
   Benchmark/                PresentMon-CSV (1.x/2.x), Testlauf-Auswertung
   Data/                     games.json, components.json (ohne Neuübersetzung erweiterbar)
-src/Dlss5Optimizer.App      WPF-Oberfläche (MVVM) + Windows-Anbindung
+src/Dlss5Optimizer.Windows  Windows-Anbindung ohne Oberfläche (Registry, Vulkan-Layer, Ereignisprotokoll, Module)
+src/Dlss5Optimizer.App      WPF-Oberfläche (MVVM)
+tools/Dlss5Optimizer.SelfTest  Selbsttest gegen echte Quellen und echtes Windows
 tests/Dlss5Optimizer.Core.Tests
 ```
 
@@ -245,9 +308,9 @@ dotnet publish src/Dlss5Optimizer.App -c Release -o publish    # Single-File-EXE
 
 ## Bekannte Grenzen
 
-- **Bisher nur unter Linux gebaut und getestet.** Die Windows-Teile (Registry, Modul-Liste,
-  PresentMon, Vulkan-Layer) sind nach Dokumentation geschrieben, aber noch nicht auf einem echten
-  Windows-PC gelaufen.
+- **Noch nicht mit Grafikkarte getestet.** Die Windows-Teile laufen im Selbsttest auf einem echten
+  Windows ohne GPU: Registry, Vulkan-Layer, Ereignisprotokoll und Modul-Liste. Die Oberfläche,
+  PresentMon-Messungen und DLSS 5 im Spiel sind erst auf einer RTX 50 prüfbar.
 - **Fallout 3/New Vegas:** Die Konfiguration stammt aus bestätigt laufenden Community-Aufbauten.
   Für New Vegas sind die Tiefenpuffer-Werte von Fallout 3 übernommen (gleiche Engine). Die
   Bewegungsvektoren sind geschätzt, deshalb sind Schlieren bei schnellen Drehungen möglich; HUD und

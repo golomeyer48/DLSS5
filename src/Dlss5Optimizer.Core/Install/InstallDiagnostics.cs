@@ -144,6 +144,24 @@ public static class InstallDiagnostics
             return checks;
         }
 
+        // Virenscanner entfernen NGX-Add-ons gern kurz nach dem Kopieren (sie hängen sich in NGX ein).
+        var vanished = manifest.Files
+            .Where(f => f.InstalledSha256 is not null && !f.RelativePath.StartsWith('%'))
+            .Select(f => f.RelativePath)
+            .Where(rel => Path.GetExtension(rel).ToLowerInvariant() is ".addon64" or ".addon32" or ".dll" or ".exe")
+            .Where(rel => !File.Exists(Path.Combine(gameDir, rel)))
+            .ToList();
+        if (vanished.Count > 0)
+        {
+            bool addon = vanished.Any(v => v.Contains("renodx", StringComparison.OrdinalIgnoreCase) || v.Contains("deep-fried-chicken", StringComparison.OrdinalIgnoreCase)
+                                           || v.EndsWith(".addon64", StringComparison.OrdinalIgnoreCase) || v.EndsWith(".addon32", StringComparison.OrdinalIgnoreCase));
+            checks.Add(new("Installierte Dateien", DiagnosticStatus.Failed,
+                $"Verschwunden: {string.Join(", ", vanished)}. "
+                + (addon
+                    ? "Vermutlich hat Windows Defender sie entfernt (DLSS-Add-ons hängen sich in NGX ein und sehen für Virenscanner wie Hook-Werkzeuge aus). Windows-Sicherheit → Schutzverlauf prüfen, eine Ausnahme für den Spielordner anlegen und „Reparieren“ klicken."
+                    : "Ein Spiel-Update oder Virenscanner hat sie entfernt – „Reparieren“ installiert sie neu.")));
+        }
+
         if (route.UsesDxvk())
         {
             var exeBase = Path.GetFileNameWithoutExtension(exeName);

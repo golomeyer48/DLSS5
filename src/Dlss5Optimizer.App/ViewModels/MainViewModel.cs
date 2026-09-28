@@ -557,6 +557,46 @@ public sealed partial class MainViewModel : ObservableObject
         };
     }
 
+    /// <summary>
+    /// Packt Logs, Einstellungen, Dateiliste und Systemdaten in eine ZIP-Datei auf dem Desktop – zum
+    /// Weitergeben, wenn etwas nicht läuft. Benutzernamen in Pfaden werden ersetzt, Spielstände nicht eingepackt.
+    /// </summary>
+    [RelayCommand]
+    private async Task DiagnosticPackageAsync()
+    {
+        var g = SelectedGame;
+        if (g?.Analysis.GameDir is not { } dir)
+        {
+            _dialogs.Info("Diagnose-Paket", "Für dieses Spiel wurde keine EXE gefunden.");
+            return;
+        }
+        var safeName = string.Concat(g.Name.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) || ch == ' ' ? '-' : ch));
+        var zip = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), $"DLSS5-Diagnose-{safeName}-{DateTime.Now:yyyyMMdd-HHmm}.zip");
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        // Von uns geänderte Einstellungsdateien außerhalb des Spielordners (z. B. FalloutPrefs.ini).
+        var external = (g.Installed?.Files ?? [])
+            .Where(f => f.RelativePath.StartsWith("%DOCUMENTS%", StringComparison.OrdinalIgnoreCase))
+            .Select(f => Path.Combine(documents, f.RelativePath["%DOCUMENTS%".Length..].TrimStart('\\', '/')))
+            .ToList();
+        var options = new DiagnosticBundle.Options(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Environment.UserName, external, _s.LogPath);
+        try
+        {
+            var summary = DiagnosticSummary.Build(_s, g);
+            await RunBusy("Packe Diagnose …", () => Task.Run(() => DiagnosticBundle.Create(zip, dir, summary, options)));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            _dialogs.Info("Diagnose-Paket", "Konnte nicht gespeichert werden: " + e.Message);
+            return;
+        }
+        Log($"{g.Name}: Diagnose-Paket gespeichert: {zip}");
+        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{zip}\"") { UseShellExecute = true });
+        _dialogs.Info("Diagnose-Paket", $"Gespeichert auf dem Desktop:\n{Path.GetFileName(zip)}\n\n"
+            + "Enthält die Logs und Einstellungen der Mods, eine Dateiliste, System- und Absturzdaten – keine Spielstände. "
+            + "Dein Benutzername ist in allen Pfaden ersetzt.");
+    }
+
     private void RememberOutcome(GameItemViewModel g, RouteId route, bool worked, string reason)
     {
         var key = g.Analysis.Game.Key;
