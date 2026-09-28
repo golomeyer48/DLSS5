@@ -20,7 +20,7 @@ automatisch die Variante mit der besten Kombination aus Bildqualität und Leistu
 
 **Quellcode lokal einrichten** (z. B. in `D:\DLSS5`):
 ```powershell
-git clone https://github.com/GoloMeyer84/DLSS5.git D:\DLSS5
+git clone https://github.com/golomeyer48/DLSS5.git D:\DLSS5
 cd D:\DLSS5
 .\build.bat        # braucht das .NET 10 SDK; die EXE landet in publish\
 claude             # Claude Code liest CLAUDE.md und kennt damit Aufbau, Regeln und Stand
