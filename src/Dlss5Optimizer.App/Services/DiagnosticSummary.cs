@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Dlss5Optimizer.App.ViewModels;
+using Dlss5Optimizer.Core.Components;
 using Dlss5Optimizer.Core.Decision;
 using Dlss5Optimizer.Core.Detection;
 using Dlss5Optimizer.Core.Install;
@@ -33,7 +34,8 @@ public static class DiagnosticSummary
         Line($"Windows: {Environment.OSVersion.VersionString}");
         Line($"Grafikkarte: {sys.Gpu.Name} ({sys.Gpu.VramBytes / (1024.0 * 1024 * 1024):0} GB), Treiber {sys.Gpu.DriverVersion?.ToString() ?? "unbekannt"}");
         Line($"Anzeige: {sys.Display.Width}×{sys.Display.Height} @ {sys.Display.RefreshHz} Hz, HAGS: {sys.HardwareSchedulingEnabled?.ToString() ?? "unbekannt"}");
-        var model = s.DlssNrModel();
+        // Treiber oder Komponentenspeicher – wie beim Installieren.
+        var model = s.Availability.ResolveFile(RouteCatalog.Ids.DlssNrModel, SystemFileLocator.DlssNrFile);
         Line($"DLSS-5-Modell: {model ?? "nicht gefunden"}{(model is not null && PeFile.TryRead(model)?.FileVersion is { } mv ? $" (v{mv})" : "")}");
         Line($"D3DX9-Laufzeit (32 Bit): {(CrashLog.HasD3dx9Runtime(is32Bit: true) ? "vorhanden" : "fehlt")}");
         var layers = VulkanLayer.RegisteredReShadeLayers();

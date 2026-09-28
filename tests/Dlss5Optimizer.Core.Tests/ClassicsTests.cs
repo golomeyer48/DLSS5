@@ -70,6 +70,26 @@ public class ClassicsTests
         Assert.Contains(copies, c => c.Target == "d3d9.dll" && File.ReadAllText(c.Source) == "DXVK-x32");
         Assert.True(Assert.Single(plan.Steps.OfType<RegisterVulkanLayerStep>()).Is32Bit);
         Assert.Contains(plan.Hints, h => h.Contains("DirectX End-User Runtime"));
+        Assert.Contains(plan.Steps.OfType<WriteTextStep>(), w => w.Target == "dxvk.conf" && w.Content.Contains("dxvk.enableDescriptorHeap = False"));
+    }
+
+    [Fact]
+    public void ForeignDxvkConfIsKeptAndOwnIsRewritten()
+    {
+        using var t = new TempDir();
+        TestPe.Write(t.Combine("Old/old.exe"), TestPe.I386, ["d3d8.dll"], largeAddressAware: true);
+        var (store, avail) = AllComponents(t);
+        var a = Analyzer().Analyze(new GameInfo("Old", t.Combine("Old"), GameSource.Manual));
+        var best = new DecisionEngine(avail.IsAvailable, avail.CanAutoDownload).Recommend(a, System5070Ti, new UserPreferences()).Best!;
+
+        t.File("Old/dxvk.conf", "d3d9.maxFrameRate = 60");
+        var foreign = new RoutePlanner(avail, store).Plan(a, best);
+        Assert.DoesNotContain(foreign.Steps.OfType<WriteTextStep>(), w => w.Target == "dxvk.conf");
+        Assert.Contains(foreign.Hints, h => h.Contains("dxvk.enableDescriptorHeap = False"));
+
+        File.WriteAllText(t.Combine("Old/dxvk.conf"), "# DLSS5 Optimizer: alt\r\n");
+        var own = new RoutePlanner(avail, store).Plan(a, best);
+        Assert.Contains(own.Steps.OfType<WriteTextStep>(), w => w.Target == "dxvk.conf");
     }
 
     // ------------------------------------------------------------------ Merkliste + Wechsel
@@ -407,5 +427,35 @@ public class DlssModelTests
         store.Import(RouteCatalog.Ids.DlssNrModel, [good]);
         Assert.True(store.IsAvailable(RouteCatalog.Ids.DlssNrModel));
         Assert.False(catalog.Get(RouteCatalog.Ids.DlssNrModel)!.MatchesPin(bad));
+    }
+
+    [Fact]
+    public void KnownModifiedBuildIsRejectedWithItsOrigin()
+    {
+        using var t = new TempDir();
+        var good = t.File("good/nvngx_dlssnr.dll", "ORIGINAL");
+        var patched = t.File("patcher/nvngx_dlssnr.dll", "PATCHER");
+        var catalog = new ComponentCatalog([new ComponentDefinition
+        {
+            Id = RouteCatalog.Ids.DlssNrModel, Name = "Modell",
+            Source = new ComponentSource { Type = ComponentSourceType.Import },
+            ExpectedFiles = ["nvngx_dlssnr.dll"],
+            PinnedSha256 = new() { ["nvngx_dlssnr.dll"] = [ComponentStore.Sha256Of(good)] },
+            KnownModifiedSha256 = new() { [ComponentStore.Sha256Of(patched).ToUpperInvariant()] = "Testpatcher 1.0" },
+        }]);
+        var store = new ComponentStore(t.Combine("store"), catalog);
+
+        var e = Assert.Throws<InvalidDataException>(() => store.Import(RouteCatalog.Ids.DlssNrModel, [patched]));
+        Assert.Contains("Testpatcher 1.0", e.Message);
+        Assert.False(store.IsAvailable(RouteCatalog.Ids.DlssNrModel));
+    }
+
+    [Fact]
+    public void CatalogKnowsThePatcherModelAsModified()
+    {
+        var def = ComponentCatalog.LoadEmbedded().Get(RouteCatalog.Ids.DlssNrModel)!;
+        const string patcher = "8270b350cd82de5ce89806872cdd6b6a9249b80836b91bbeb3573470744cc206";
+        Assert.Contains("DLSS 5 Patcher", def.DescribeKnownModified(patcher));
+        Assert.DoesNotContain(patcher, def.PinnedSha256["nvngx_dlssnr.dll"]);
     }
 }

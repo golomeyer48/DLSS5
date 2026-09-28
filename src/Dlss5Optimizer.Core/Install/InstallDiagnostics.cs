@@ -84,6 +84,9 @@ public static class InstallDiagnostics
             return new DiagnosticReport(checks, DiagnosticVerdict.WrapperBypassed,
                 "Das Spiel lädt die d3d9.dll aus Windows selbst (z. B. für einen DirectX-Test beim Start). Dann greift weder DXVK noch dgVoodoo – mit diesen Werkzeugen nicht lösbar.", null);
 
+        if (checks.FirstOrDefault(c => c.Title == CrashTitle) is { } startCrash)
+            return new DiagnosticReport(checks, DiagnosticVerdict.NeedsAttention, startCrash.Detail, null);
+
         if (crashes.Count > 0)
             return new DiagnosticReport(checks, DiagnosticVerdict.NeedsAttention,
                 $"Das Spiel ist abgestürzt ({crashes[0].Module}, Code {crashes[0].Code}).", null);
@@ -164,8 +167,7 @@ public static class InstallDiagnostics
 
         if (route.UsesDxvk())
         {
-            var exeBase = Path.GetFileNameWithoutExtension(exeName);
-            var dxvk = Log($"{exeBase}_d3d9.log");
+            var dxvk = DxvkLog(gameDir, since, exeName);
             checks.Add(dxvk is null
                 ? new("DXVK (DirectX 9 → Vulkan)", DiagnosticStatus.NotRunYet,
                     "Kein DXVK-Log seit der Installation. Spiel starten. Fehlt es danach weiter, lädt das Spiel die System-d3d9.dll (z. B. durch einen DirectX-Test beim Start) – dann die dgVoodoo-Route versuchen.")
@@ -204,6 +206,9 @@ public static class InstallDiagnostics
         if (route.UsesFeeder())
         {
             var feed = Log("dlss5-feed.log");
+            var crash = feed is null ? null : FeederCrashCheck(gameDir, since, feed);
+            if (crash is not null)
+                checks.Add(crash);
             if (feed is null)
                 checks.Add(new("DLSS5-Feeder", DiagnosticStatus.NotRunYet, "Noch kein Feeder-Log – im Spiel die Techniken Lumenite_Kernel und DLSS5_Feed aktivieren (Pos1)."));
             else if (Contains(feed, "transport-only") || Contains(feed, "mode=1"))
@@ -212,7 +217,7 @@ public static class InstallDiagnostics
                 checks.Add(new("DLSS5-Feeder", DiagnosticStatus.Ok, "Bilder werden übergeben (\"frame … delivered\")."));
             else if (Contains(feed, "shared set ready"))
                 checks.Add(new("DLSS5-Feeder", DiagnosticStatus.Warning, "Übergabe ist bereit, aber noch keine Bilder gesendet – ein paar Sekunden im Spiel bewegen."));
-            else
+            else if (crash is null)
                 checks.Add(new("DLSS5-Feeder", DiagnosticStatus.Warning, "Feeder geladen, aber keine Übergabe. Tiefenpuffer prüfen (Kantenglättung/MSAA im Spiel aus)."));
 
             if (feed is not null)
@@ -253,6 +258,78 @@ public static class InstallDiagnostics
                 checks.Add(new("DLSS 5 (Neural Rendering)", DiagnosticStatus.Warning, "Kein Hinweis auf DLSS 5 im Log. Im ReShade-Menü (Pos1) das DLSS-5-Panel öffnen und einschalten."));
         }
         return checks;
+    }
+
+    public const string CrashTitle = "Absturz beim Start";
+
+    private const string SteamFix = "das Spiel nicht über Steam starten, sondern mit „Spiel starten“ im Tool oder per Doppelklick auf die Spiel-EXE "
+                                    + "(Steam darf laufen; das Overlay in Steam auszuschalten reicht nicht)";
+
+    // Module von Overlays, die sich in Present/OpenGL/Vulkan einhängen – mit ReShade und DXVK ein bekannter Absturzgrund.
+    private static readonly (string Module, string Name, string Fix)[] Overlays =
+    [
+        // Steam lädt seine Overlay-DLL auch bei ausgeschaltetem Overlay – nur der Start ohne Steam hilft (Fallout 3, 28.09.2026).
+        ("gameoverlayrenderer.dll", "Steam-Overlay", SteamFix),
+        ("gameoverlayrenderer64.dll", "Steam-Overlay", SteamFix),
+        ("discordhook.dll", "Discord-Overlay", "Discord → Einstellungen → Spiel-Overlay ausschalten"),
+        ("discordhook64.dll", "Discord-Overlay", "Discord → Einstellungen → Spiel-Overlay ausschalten"),
+        ("rtsshooks.dll", "RivaTuner-Overlay", "RivaTuner Statistics Server für dieses Spiel ausschalten (Application detection level „None“)"),
+        ("rtsshooks64.dll", "RivaTuner-Overlay", "RivaTuner Statistics Server für dieses Spiel ausschalten (Application detection level „None“)"),
+    ];
+
+    /// <summary>
+    /// Der Feeder schreibt bei einer Ausnahme „EXCEPTION RECORDED“ (ältere Fassungen „CRASH RECORDED“) ins Log und
+    /// ein Abbild dlss5-feed-crash.dmp. Steht ganz oben auf dessen Stack ein Overlay, ist das die Ursache
+    /// (Feeder-Issue #95: Absturz im Steam-Overlay, bevor der Feeder etwas tut).
+    /// </summary>
+    internal static DiagnosticCheck? FeederCrashCheck(string gameDir, DateTime sinceUtc, string feedLog)
+    {
+        if (!Contains(feedLog, "EXCEPTION RECORDED") && !Contains(feedLog, "CRASH RECORDED"))
+            return null;
+        bool feederIdle = Contains(feedLog, "no feed work has run");
+        var dumpPath = Path.Combine(gameDir, "dlss5-feed-crash.dmp");
+        var dump = File.Exists(dumpPath) && File.GetLastWriteTimeUtc(dumpPath) >= sinceUtc ? MiniDump.TryRead(dumpPath) : null;
+        if (dump is null)
+            return new(CrashTitle, DiagnosticStatus.Failed,
+                "Das Spiel ist beim Start abgestürzt (der Feeder hat eine Ausnahme aufgezeichnet)"
+                + (feederIdle ? ", bevor der Feeder etwas getan hat" : "") + ". Das „Diagnose-Paket“ enthält die Logs für eine genauere Auswertung.");
+
+        var where = dump.FaultModule ?? "außerhalb jedes Moduls";
+        // Nur der oberste Aufrufer zählt – weiter unten liegen alte Rücksprungadressen, auch vom Feeder selbst.
+        var top = dump.StackModules.Take(2).ToList();
+        var overlay = Overlays.FirstOrDefault(o => (dump.FaultModule is { } f && f.Equals(o.Module, StringComparison.OrdinalIgnoreCase))
+                                                   || top.Any(m => m.Equals(o.Module, StringComparison.OrdinalIgnoreCase)));
+        if (overlay.Module is not null)
+            return new(CrashTitle, DiagnosticStatus.Failed,
+                $"Das {overlay.Name} hat den Absturz ausgelöst ({dump.CodeHex} {where}, aufgerufen aus {overlay.Module})"
+                + (feederIdle ? " – noch bevor der Feeder etwas getan hat" : "")
+                + $". Abhilfe: {overlay.Fix}, dann das Spiel neu starten.");
+        return new(CrashTitle, DiagnosticStatus.Failed,
+            $"Das Spiel ist beim Start abgestürzt ({dump.CodeHex} {where}; Aufrufer: {string.Join(" → ", dump.StackModules.Take(4))})"
+            + (feederIdle ? ", bevor der Feeder etwas getan hat" : "") + ". Das „Diagnose-Paket“ enthält Logs und Absturzabbild.");
+    }
+
+    /// <summary>
+    /// DXVK schreibt &lt;exe&gt;_d3d9.log – aber manche Spiele starten eine andere EXE (Fallout 3: Fallout3.exe →
+    /// Fallout3ng.exe, dazu der Launcher). Zählt das Log der Haupt-EXE oder eines, in dem DXVK ein Gerät angelegt hat.
+    /// </summary>
+    private static string? DxvkLog(string gameDir, DateTime sinceUtc, string exeName)
+    {
+        var own = ReadFreshLog(gameDir, sinceUtc, $"{Path.GetFileNameWithoutExtension(exeName)}_d3d9.log");
+        if (own is not null)
+            return own;
+        try
+        {
+            return Directory.EnumerateFiles(gameDir, "*_d3d9.log")
+                .Where(p => File.GetLastWriteTimeUtc(p) >= sinceUtc)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .Select(p => ReadFreshLog(gameDir, sinceUtc, Path.GetFileName(p)))
+                .FirstOrDefault(log => log is not null && (Contains(log, "D3D9DeviceEx") || Contains(log, "Creating device")));
+        }
+        catch (IOException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Liest das Ende der ersten vorhandenen Logdatei, die seit der Installation geschrieben wurde.</summary>

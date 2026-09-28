@@ -6,3 +6,7 @@ TestResults/
 publish/
 screenshots/
 selftest.md
+# Fremde Pakete zum Prüfen (enthalten Binärdateien Dritter) – nie einchecken
+DLSS5Patcher/
+# Diagnose-Pakete enthalten Logs und Systemdaten des Nutzers
+DLSS5-Diagnose-*.zip

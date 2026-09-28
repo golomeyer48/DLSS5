@@ -88,9 +88,12 @@ public sealed class ComponentStore(string root, ComponentCatalog catalog)
                 {
                     foreach (var f in Directory.EnumerateFiles(staging, name, new EnumerationOptions { RecurseSubdirectories = true, MatchCasing = MatchCasing.CaseInsensitive }))
                     {
-                        if (!def.MatchesPin(f))
-                            throw new InvalidDataException($"{def.Name}: {name} ist nicht die erwartete, unveränderte Fassung (SHA-256 {Sha256Of(f)[..16]}…). "
-                                                           + "Veränderte Builds werden nicht verwendet.");
+                        if (def.MatchesPin(f))
+                            continue;
+                        var sha = Sha256Of(f);
+                        var known = def.DescribeKnownModified(sha) is { } build ? $" Bekannt als: {build}." : "";
+                        throw new InvalidDataException($"{def.Name}: {name} ist nicht die erwartete, unveränderte Fassung (SHA-256 {sha[..16]}…).{known} "
+                                                       + "Veränderte Builds werden nicht verwendet.");
                     }
                 }
             }

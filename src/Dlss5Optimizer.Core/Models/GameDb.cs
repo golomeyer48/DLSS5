@@ -49,6 +49,12 @@ public sealed record GameDbEntry
     public string[] LaunchExes { get; init; } = [];
 
     /// <summary>
+    /// Die eigentliche Spiel-EXE hinter einem Launcher (Fallout 3: Fallout3.exe → Fallout3ng.exe). Sie wird
+    /// gestartet, wenn das Spiel ohne Steam laufen muss, und beim Messen gesucht.
+    /// </summary>
+    public string? DirectExe { get; init; }
+
+    /// <summary>
     /// Weitere Ordner (relativ zur EXE), in die der Übersetzer zusätzlich muss – Source-Spiele laden
     /// shaderapidx9.dll aus bin\ und damit auch die d3d9.dll von dort.
     /// </summary>

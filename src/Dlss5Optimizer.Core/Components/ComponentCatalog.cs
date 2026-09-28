@@ -65,6 +65,16 @@ public sealed record ComponentDefinition
         return allowed.Contains(ComponentStore.Sha256Of(path), StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// SHA-256 → Herkunft bekannter veränderter Builds (z. B. aus Patcher-Paketen). Sie werden wie jede andere
+    /// abweichende Datei abgelehnt; die Meldung sagt dann aber, woher die Datei stammt.
+    /// </summary>
+    public Dictionary<string, string> KnownModifiedSha256 { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Beschreibung eines bekannten veränderten Builds oder null.</summary>
+    public string? DescribeKnownModified(string sha256) =>
+        KnownModifiedSha256.FirstOrDefault(kv => kv.Key.Equals(sha256, StringComparison.OrdinalIgnoreCase)).Value;
+
     /// <summary>Dateien, die aus einem Installer mit angehängtem ZIP geholt werden (ReShade-Setup).</summary>
     public string[] ExtractFromInstaller { get; init; } = [];
     public string[] Notes { get; init; } = [];

@@ -89,6 +89,7 @@
         { "file": "%DOCUMENTS%\\My Games\\Fallout3\\FalloutPrefs.ini", "section": "Display", "key": "iMultiSample", "value": "0", "reason": "Kantenglättung (MSAA) aus – sonst sieht ReShade keinen Tiefenpuffer" }
       ],
       "launchExes": [ "fose_loader.exe" ],
+      "directExe": "Fallout3ng.exe",
       "largeAddressHint": "Einen 4GB-Patcher für Fallout 3 verwenden (Nexus Mods). Die Steam-EXE nicht von Hand patchen.",
       "notes": [
         "Getesteter Weg (dlss5-classic-games): DXVK → ReShade-Vulkan-Layer → DLSS5-Feeder (32 Bit) → 64-Bit-Hilfsprozess mit RenoDX. dgVoodoo beendet das Spiel nach etwa einer Sekunde.",

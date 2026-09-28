@@ -392,14 +392,12 @@ public sealed partial class MainViewModel : ObservableObject
         // Spiele mit mehreren APIs nach der Installation immer mit der installierten API starten.
         var installedApi = g.Installed?.Config.Api;
         var args = installedApi is { } api && g.Analysis.Api.Supported.Each().Count() > 1 ? DecisionEngine.LaunchArgument(g.Analysis.Engine, api) : null;
-        // Script Extender (nvse_loader.exe, fose_loader.exe …) starten, wenn vorhanden – sonst fehlen Mods.
-        var loader = g.Analysis.GameDir is { } gameDir
-            ? g.Analysis.DbEntry?.LaunchExes.Select(l => Path.Combine(gameDir, l)).FirstOrDefault(File.Exists)
-            : null;
+        // Script Extender (nvse_loader.exe, fose_loader.exe …) und Steam-Spiele mit ReShade-Vulkan-Layer direkt starten.
+        var choice = LaunchChooser.Choose(g.Analysis, g.Installed);
         try
         {
-            GameLauncher.Launch(g.Analysis.Game, g.Analysis.MainExe, args, loader);
-            Log($"{g.Name} gestartet{(args is null ? "" : " mit " + args)}. In eine typische Spielszene gehen, dann „Messen“.");
+            GameLauncher.Launch(g.Analysis.Game, g.Analysis.MainExe, args, choice.Exe);
+            Log($"{g.Name} gestartet{(choice.Exe is { } direct ? $" über {Path.GetFileName(direct)} ({choice.Reason})" : "")}{(args is null ? "" : " mit " + args)}. In eine typische Spielszene gehen, dann „Messen“.");
         }
         catch (Exception e)
         {
@@ -415,7 +413,8 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task MeasureAsync()
     {
         var g = SelectedGame;
-        if (g?.Analysis.MainExe is not { } exe)
+        // Hinter einem Launcher läuft das Spiel als andere EXE (Fallout 3: Fallout3ng.exe).
+        if (g is null || LaunchChooser.GameProcessExe(g.Analysis) is not { } exe)
             return;
         var procName = Path.GetFileName(exe);
 
@@ -499,7 +498,7 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task DiagnoseAsync()
     {
         var g = SelectedGame;
-        if (g?.Analysis.GameDir is not { } dir || g.Analysis.MainExe is not { } exe)
+        if (g?.Analysis.GameDir is not { } dir || LaunchChooser.GameProcessExe(g.Analysis) is not { } exe)
             return;
         if (g.Installed is not { } manifest)
         {

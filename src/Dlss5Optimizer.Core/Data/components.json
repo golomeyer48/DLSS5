@@ -98,8 +98,9 @@
       "description": "Übersetzt DirectX 8–11 nach Vulkan. Getesteter Weg für 32-Bit-DX9-Spiele wie Fallout 3 und New Vegas, in denen dgVoodoo scheitert.",
       "license": "zlib",
       "homepage": "https://github.com/doitsujin/dxvk",
-      "source": { "type": "GitHub", "repo": "doitsujin/dxvk", "assetPattern": "^dxvk-[\\d.]+\\.tar\\.gz$" },
-      "expectedFiles": [ "d3d9.dll" ]
+      "source": { "type": "GitHub", "repo": "doitsujin/dxvk", "tagPattern": "^v3\\.0\\.2$", "assetPattern": "^dxvk-[\\d.]+\\.tar\\.gz$" },
+      "expectedFiles": [ "d3d9.dll" ],
+      "notes": [ "Fest auf 3.0.2: damit sind Fallout 3 und die anderen DirectX-9-Klassiker in dlss5-classic-games bestätigt. Mit 3.1.1 stürzte Fallout 3 beim ersten Bild ab (28.09.2026)." ]
     },
     {
       "id": "d3d8to9",
@@ -138,9 +139,13 @@
       "source": { "type": "Import", "distribution": "Nicht automatisch ladbar – die signierte Fassung 310.8.0 selbst beschaffen (RenoDX-Discord) und hier importieren" },
       "expectedFiles": [ "nvngx_dlssnr.dll" ],
       "pinnedSha256": { "nvngx_dlssnr.dll": [ "e16bcf15e16e13f527491cdf7845b2fe6521a738d8f7c9c721866a8496e1fc8e" ] },
+      "knownModifiedSha256": {
+        "8270b350cd82de5ce89806872cdd6b6a9249b80836b91bbeb3573470744cc206": "„DLSS 5 Patcher“ 1.2.1 (MRHRTZ), auch als nvngx.dll_dlssnr_rtx20.dll – nach NVIDIAs Signatur verändert (Signaturprüfung: HashMismatch)"
+      },
       "notes": [
         "Import: die DLL oder das ZIP (nvngx_dlssnr_310.8.0.zip) wählen.",
-        "Angenommen wird nur genau die von NVIDIA signierte Datei 310.8.0 – veränderte Builds (310.8.Lecram, SF, RTX40) werden abgelehnt, auf einer RTX 50 sind sie nicht nötig."
+        "Angenommen wird nur genau die von NVIDIA signierte Datei 310.8.0 – veränderte Builds (310.8.Lecram, SF, RTX40) werden abgelehnt, auf einer RTX 50 sind sie nicht nötig.",
+        "Auch die Datei aus dem „DLSS 5 Patcher“ (MRHRTZ) ist verändert und wird abgelehnt."
       ]
     },
     {

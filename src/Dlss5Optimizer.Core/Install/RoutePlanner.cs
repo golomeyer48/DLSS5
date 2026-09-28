@@ -214,7 +214,13 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
             c.Hints.Add("Der DLSS-5-Regler liegt im Hilfsprozess: ReShade-Menü → Add-ons → DLSS 5 Feed → „Show the DLSS 5 panel in-game“.");
         if (viaLayer)
             c.Hints.Add("NVIDIA Smooth Motion für dieses Spiel ausschalten – mit dem Feeder unter Vulkan unverträglich.");
+        // Über Steam gestartet stürzte Fallout 3 beim ersten Bild ab – auch mit ausgeschaltetem Overlay (siehe LaunchChooser).
+        if (viaLayer && c.Game.Game.Source == GameSource.Steam)
+            c.Hints.Add($"Spiel mit „Spiel starten“ im Tool oder per Doppelklick auf {c.Game.DbEntry?.DirectExe ?? Path.GetFileName(c.Game.MainExe) ?? "die EXE"} starten – nicht über Steam. "
+                        + "Über Steam laden Overlay und Steams Vulkan-Layer mit, und das Spiel stürzt beim ersten Bild ab (Overlay ausschalten reicht nicht). Steam darf laufen.");
     }
+
+    private const string DxvkConf = "dxvk.conf";
 
     /// <summary>DXVK als d3d9.dll (32 oder 64 Bit) – ersetzt dabei ENB, ein älteres DXVK oder dgVoodoo (gesichert).</summary>
     private void PlanDxvk(Context c, bool is32)
@@ -235,6 +241,14 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
             c.Steps.Add(new CopyFileStep(src, Path.Combine(extra, "d3d9.dll"), $"DXVK zusätzlich in {extra}\\ (die Engine lädt d3d9.dll von dort)"));
         if (File.Exists(Path.Combine(c.GameDir, "dgVoodoo.conf")))
             c.Hints.Add("dgVoodoo war installiert – seine D3D9.dll wurde durch DXVK ersetzt (gesichert).");
+        // VK_EXT_descriptor_heap ist jünger als die Vulkan-Header, mit denen ReShade 6.8 gebaut ist; der ReShade-Layer
+        // verfolgt Deskriptoren nur über die klassischen Descriptor Sets. Eine vorhandene dxvk.conf bleibt unangetastet.
+        var confPath = Path.Combine(c.GameDir, DxvkConf);
+        if (File.Exists(confPath) && !File.ReadAllText(confPath).Contains("DLSS5 Optimizer", StringComparison.Ordinal))
+            c.Hints.Add($"Im Spielordner liegt schon eine {DxvkConf} – bitte dort „dxvk.enableDescriptorHeap = False“ ergänzen (verträgt sich besser mit ReShade).");
+        else
+            c.Steps.Add(new WriteTextStep(DxvkConf, "# DLSS5 Optimizer: klassische Descriptor Sets statt VK_EXT_descriptor_heap (ReShade-Layer)\r\ndxvk.enableDescriptorHeap = False\r\n",
+                "dxvk.conf: Descriptor Heap aus (verträglicher mit dem ReShade-Vulkan-Layer)"));
         // DXVK schreibt Logs und Shader-Caches neben die EXE.
         c.Cleanup.AddRange(["*_d3d9.log", "*_dxgi.log", "*.dxvk-cache"]);
     }
