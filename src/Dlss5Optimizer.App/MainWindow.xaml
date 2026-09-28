@@ -7,7 +7,8 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="DLSS5 Optimizer" Width="1360" Height="880" MinWidth="1060" MinHeight="640"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Style="{StaticResource AppWindow}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -36,7 +37,7 @@
             </DockPanel>
         </Border>
 
-        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="0">
+        <TabControl x:Name="MainTabs" Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="0">
             <!-- ================================================================ Spiele -->
             <TabItem Header="Spiele">
                 <Grid Margin="16,12,16,0">

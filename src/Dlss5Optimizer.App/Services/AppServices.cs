@@ -52,11 +52,14 @@ public sealed class AppServices
         System = WindowsSystem.Read();
     }
 
+    /// <summary>Feste Systemdaten statt der echten (nur Bildschirmfotos im Build, dort gibt es keine NVIDIA-Karte).</summary>
+    public SystemInfo? SystemOverride { get; set; }
+
     public DecisionEngine Engine => new(Availability.IsAvailable, Availability.CanAutoDownload);
 
     public void RefreshSystem()
     {
-        System = WindowsSystem.Read();
+        System = SystemOverride ?? WindowsSystem.Read();
         _dlssNrModelSearched = false;
     }
 
