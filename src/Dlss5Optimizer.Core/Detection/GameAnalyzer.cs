@@ -217,11 +217,14 @@ public sealed class GameAnalyzer(GameDatabase db)
         // Viele DX12-Spiele importieren zusätzlich d3d11.dll (D3D11On12, Videos, Overlays) –
         // das allein heißt nicht, dass es einen DX11-Modus gibt.
         bool hasD3D12 = imports.Contains("d3d12.dll");
+        // DX10/11/12-Spiele holen oft nur die PIX-Marker (D3DPERF_*) aus d3d9.dll, etwa Devil May Cry 4 SE
+        // (d3d10_1.dll + d3d9.dll). Ein DX9-Übersetzer wäre dort wirkungslos.
+        bool hasNewerD3D = hasD3D12 || imports.Contains("d3d11.dll") || imports.Contains("d3d10.dll") || imports.Contains("d3d10_1.dll");
         foreach (var (dll, api, weight) in ImportRules)
         {
             if (imports.Contains(dll))
             {
-                double w = hasD3D12 && api == GraphicsApi.D3D11 ? weight * 0.5 : weight;
+                double w = hasD3D12 && api == GraphicsApi.D3D11 || hasNewerD3D && api == GraphicsApi.D3D9 ? weight * 0.5 : weight;
                 add(api, w * factor);
                 evidence.Add($"{label} {dll} → {api.DisplayName()}");
             }

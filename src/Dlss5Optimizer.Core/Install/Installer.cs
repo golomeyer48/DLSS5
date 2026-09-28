@@ -227,6 +227,8 @@ public sealed class Installer(Action<string, bool>? registerVulkanLayer = null, 
             else if (Directory.Exists(p))
                 TryDeleteDirectory(p);
         }
+        // Erst jetzt sind z. B. host64\ oder reshade-shaders\ leer (die Logs darin sind weg).
+        RemoveCreatedDirectories(gameDir, manifest.CreatedDirectories);
         TryDeleteDirectory(StateDir(gameDir));
     }
 
@@ -277,6 +279,12 @@ public sealed class Installer(Action<string, bool>? registerVulkanLayer = null, 
                 File.Delete(target);
             }
         }
+        RemoveCreatedDirectories(gameDir, createdDirs);
+    }
+
+    /// <summary>Selbst angelegte Ordner entfernen, sofern leer (Dateien des Nutzers bleiben unangetastet).</summary>
+    private static void RemoveCreatedDirectories(string gameDir, IEnumerable<string> createdDirs)
+    {
         foreach (var d in createdDirs.OrderByDescending(d => d.Length))
         {
             var full = Path.Combine(gameDir, d);

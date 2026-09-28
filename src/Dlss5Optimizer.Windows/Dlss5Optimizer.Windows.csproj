@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Windows-Anbindung ohne Oberfläche (Registry, Ereignisprotokoll, Prozesse, PresentMon).
+       Getrennt von der WPF-App, damit der Selbsttest sie auf dem Windows-Build-Rechner prüfen kann. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>Dlss5Optimizer.Platform</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dlss5Optimizer.Core\Dlss5Optimizer.Core.csproj" />
+  </ItemGroup>
+
+</Project>

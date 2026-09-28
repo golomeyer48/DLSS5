@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Dlss5Optimizer.App.Platform;
+namespace Dlss5Optimizer.Platform;
 
 /// <summary>
 /// Liest die geladenen Module eines laufenden Spiels. EnumProcessModulesEx mit LIST_MODULES_ALL,

@@ -1,3 +1,4 @@
+using Dlss5Optimizer.Core.Detection;
 using System.IO.Compression;
 using System.Text.Json;
 using Dlss5Optimizer.Core.Components;
@@ -397,4 +398,82 @@ public class RoutePlannerTests
         installer.Uninstall(gameDir);
         Assert.Empty(Directory.EnumerateFileSystemEntries(gameDir));
     }
+}
+
+/// <summary>ReShade-Vulkan-Layer wie das offizielle Setup ablegen – ohne eine gute Fassung zu zerstören.</summary>
+public class ReShadeLayerTests
+{
+    private static readonly string[] AddonExports = ["ReShadeRegisterAddon", "ReShadeUnregisterAddon"];
+
+    private static string StoreLayer(TempDir t, Version version)
+    {
+        TestPe.Write(t.Combine("store/ReShade32.dll"), TestPe.I386, ["kernel32.dll"], version: version, exports: AddonExports);
+        return t.File("store/ReShade32.json", "{\"layer\":{\"library_path\":\".\\\\ReShade32.dll\"}}");
+    }
+
+    [Fact]
+    public void FreshInstallCopiesDllAndManifest()
+    {
+        using var t = new TempDir();
+        var json = StoreLayer(t, new Version(6, 8, 0, 0));
+
+        var r = ReShadeLayer.Deploy(json, is32Bit: true, t.Combine("pd"));
+
+        Assert.Equal(ReShadeLayer.DeployAction.Installed, r.Action);
+        Assert.Equal(t.Combine("pd/ReShade32.json"), r.ManifestPath);
+        Assert.True(File.Exists(t.Combine("pd/ReShade32.dll")));
+    }
+
+    [Fact]
+    public void LayerWithoutAddonSupportIsBackedUpAndReplaced()
+    {
+        using var t = new TempDir();
+        var json = StoreLayer(t, new Version(6, 8, 0, 0));
+        TestPe.Write(t.Combine("pd/ReShade32.dll"), TestPe.I386, ["kernel32.dll"], version: new Version(6, 9, 0, 0)); // neuer, aber ohne Add-ons
+        var original = File.ReadAllBytes(t.Combine("pd/ReShade32.dll"));
+
+        var r = ReShadeLayer.Deploy(json, is32Bit: true, t.Combine("pd"));
+
+        Assert.Equal(ReShadeLayer.DeployAction.ReplacedWithoutAddons, r.Action);
+        Assert.Equal(original, File.ReadAllBytes(t.Combine("pd/ReShade32.dll.bak")));
+        Assert.True(ReShadeLayer.HasAddonSupport(PeFile.TryRead(t.Combine("pd/ReShade32.dll"))!));
+    }
+
+    [Fact]
+    public void AddonLayerOfSameOrNewerVersionIsKept()
+    {
+        using var t = new TempDir();
+        var json = StoreLayer(t, new Version(6, 8, 0, 0));
+        TestPe.Write(t.Combine("pd/ReShade32.dll"), TestPe.I386, ["kernel32.dll"], version: new Version(6, 9, 0, 0), exports: AddonExports);
+        var theirs = File.ReadAllBytes(t.Combine("pd/ReShade32.dll"));
+
+        var r = ReShadeLayer.Deploy(json, is32Bit: true, t.Combine("pd"));
+
+        Assert.Equal(ReShadeLayer.DeployAction.KeptExisting, r.Action);
+        Assert.Equal(theirs, File.ReadAllBytes(t.Combine("pd/ReShade32.dll")));
+        Assert.True(File.Exists(t.Combine("pd/ReShade32.json")), "fehlendes Manifest wird ergänzt");
+    }
+
+    [Fact]
+    public void OlderAddonLayerIsReplaced()
+    {
+        using var t = new TempDir();
+        var json = StoreLayer(t, new Version(6, 8, 0, 0));
+        TestPe.Write(t.Combine("pd/ReShade32.dll"), TestPe.I386, ["kernel32.dll"], version: new Version(6, 1, 0, 0), exports: AddonExports);
+
+        Assert.Equal(ReShadeLayer.DeployAction.ReplacedOlder, ReShadeLayer.Deploy(json, is32Bit: true, t.Combine("pd")).Action);
+    }
+}
+
+public class RenoDxVersionTests
+{
+    [Theory]
+    [InlineData("renodx-dlss5-8.0.1", 8)]
+    [InlineData("renodx-dlss5-6.5.3", 6)]
+    [InlineData("renodx-dlss5_7.0.0-rc8.zip", 7)]
+    [InlineData("v10.2", 10)]
+    [InlineData("importiert", null)]
+    [InlineData(null, null)]
+    public void MajorVersionIgnoresTheFiveInDlss5(string? version, int? major) =>
+        Assert.Equal(major, RoutePlanner.RenoDxMajorVersion(version));
 }

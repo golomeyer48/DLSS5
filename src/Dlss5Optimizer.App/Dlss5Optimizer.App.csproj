@@ -17,7 +17,6 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="System.Diagnostics.EventLog" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Dlss5Optimizer.Core\Dlss5Optimizer.Core.csproj" />
+    <ProjectReference Include="..\Dlss5Optimizer.Windows\Dlss5Optimizer.Windows.csproj" />
   </ItemGroup>
 
 </Project>

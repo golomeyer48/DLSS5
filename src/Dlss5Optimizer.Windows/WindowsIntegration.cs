@@ -6,7 +6,7 @@ using Dlss5Optimizer.Core.Install;
 using Dlss5Optimizer.Core.Models;
 using Microsoft.Win32;
 
-namespace Dlss5Optimizer.App.Platform;
+namespace Dlss5Optimizer.Platform;
 
 /// <summary>Findet das DLSS-5-Modell des installierten NVIDIA-Treibers.</summary>
 public static class NvidiaPaths
@@ -35,18 +35,90 @@ public static class NvidiaPaths
 }
 
 /// <summary>
-/// ReShade als Vulkan-Layer – wie das offizielle ReShade-Setup unter HKLM, 32-Bit-Layer im
-/// WOW6432Node-Zweig. Aktiv wird er nur in Spielen mit ReShade.ini neben der EXE.
+/// ReShade als Vulkan-Layer – wie das offizielle ReShade-Setup: Dateien in C:\ProgramData\ReShade,
+/// Eintrag unter HKLM (32-Bit-Layer im WOW6432Node-Zweig). Aktiv wird er nur in Spielen mit
+/// ReShade.ini neben der EXE (so prüft es ReShade beim Laden).
 /// </summary>
 public static class VulkanLayer
 {
     private const string Key = @"SOFTWARE\Khronos\Vulkan\ImplicitLayers";
 
-    public static void Register(string layerJson, bool is32Bit)
+    /// <summary>Letztes Ergebnis von <see cref="Register"/> – für Protokoll und Selbsttest.</summary>
+    public static ReShadeLayer.DeployResult? LastDeploy { get; private set; }
+
+    /// <param name="storeManifest">ReShade32/64.json aus dem Komponentenspeicher.</param>
+    /// <param name="targetDir">Nur für Tests: anderer Ablageort als C:\ProgramData\ReShade.</param>
+    public static void Register(string storeManifest, bool is32Bit) => Register(storeManifest, is32Bit, null);
+
+    public static void Register(string storeManifest, bool is32Bit, string? targetDir)
     {
+        var result = ReShadeLayer.Deploy(storeManifest, is32Bit, targetDir ?? ReShadeLayer.DefaultDirectory);
         using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, is32Bit ? RegistryView.Registry32 : RegistryView.Registry64);
         using var k = hklm.CreateSubKey(Key);
-        k.SetValue(layerJson, 0, RegistryValueKind.DWord);
+        k.SetValue(result.ManifestPath, 0, RegistryValueKind.DWord);
+        // Einträge auf nicht mehr vorhandene ReShade-Layer (alte Setups, gelöschter Speicher) stören nur.
+        foreach (var name in k.GetValueNames().Where(n => IsReShade(n) && !File.Exists(n)))
+            k.DeleteValue(name, throwOnMissingValue: false);
+        LastDeploy = result;
+    }
+
+    /// <summary>Entfernt genau einen Eintrag (Selbsttest räumt damit hinter sich auf).</summary>
+    public static void Unregister(string manifestPath, bool is32Bit)
+    {
+        using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, is32Bit ? RegistryView.Registry32 : RegistryView.Registry64);
+        using var k = hklm.OpenSubKey(Key, writable: true);
+        k?.DeleteValue(manifestPath, throwOnMissingValue: false);
+    }
+
+    public static bool IsRegistered(string manifestPath, bool is32Bit)
+    {
+        using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, is32Bit ? RegistryView.Registry32 : RegistryView.Registry64);
+        using var k = hklm.OpenSubKey(Key);
+        return k?.GetValue(manifestPath) is int v && v == 0;
+    }
+
+    /// <summary>
+    /// Weitere, aktive ReShade-Layer derselben Bitness außerhalb von C:\ProgramData\ReShade. Es lädt pro Spiel
+    /// nur eine ReShade-Instanz – ist es die fremde (oft ohne Add-ons), lädt der Feeder nicht.
+    /// </summary>
+    public static IReadOnlyList<string> OtherReShadeLayers(bool is32Bit)
+    {
+        var ours = ReShadeLayer.DefaultDirectory;
+        var result = new List<string>();
+        foreach (var (hive, view, _) in Locations())
+        {
+            if (hive == RegistryHive.LocalMachine && view != (is32Bit ? RegistryView.Registry32 : RegistryView.Registry64))
+                continue;
+            using var root = RegistryKey.OpenBaseKey(hive, view);
+            using var k = root.OpenSubKey(Key);
+            foreach (var name in k?.GetValueNames() ?? [])
+            {
+                if (!IsReShade(name) || !File.Exists(name) || k!.GetValue(name) is not int enabled || enabled != 0)
+                    continue;
+                if (Path.GetDirectoryName(name) is { } dir && Path.GetFullPath(dir).Equals(Path.GetFullPath(ours), StringComparison.OrdinalIgnoreCase))
+                    continue;
+                // HKCU gilt für beide Bitness-Varianten – nur Layer mit passender DLL zählen.
+                var dll = Path.Combine(Path.GetDirectoryName(name)!, Path.GetFileNameWithoutExtension(name) + ".dll");
+                if (Dlss5Optimizer.Core.Detection.PeFile.TryRead(dll) is { } pe && pe.Bitness != (is32Bit ? Bitness.X86 : Bitness.X64))
+                    continue;
+                if (!result.Contains(name, StringComparer.OrdinalIgnoreCase))
+                    result.Add(name);
+            }
+        }
+        return result;
+    }
+
+    /// <summary>Meldet einzelne fremde Layer ab (nach Rückfrage in der Oberfläche).</summary>
+    public static void UnregisterEverywhere(IEnumerable<string> manifestPaths)
+    {
+        var paths = manifestPaths.ToList();
+        foreach (var (hive, view, _) in Locations())
+        {
+            using var root = RegistryKey.OpenBaseKey(hive, view);
+            using var k = root.OpenSubKey(Key, writable: true);
+            foreach (var p in paths)
+                k?.DeleteValue(p, throwOnMissingValue: false);
+        }
     }
 
     public static IReadOnlyList<string> RegisteredReShadeLayers()

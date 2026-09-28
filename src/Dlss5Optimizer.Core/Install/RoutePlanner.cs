@@ -200,6 +200,11 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         CopyModel(c, consumerDir);
         c.CopyResolved(Ids.DlssRuntime, "nvngx_dlss.dll", Path.Combine(consumerDir, "nvngx_dlss.dll"), "DLSS-Laufzeit (DLAA)");
 
+        // Logs von Feeder, Hilfsprozess und dessen ReShade – „Rückgängig“ räumt sie mit weg.
+        c.Cleanup.Add("dlss5-feed.log");
+        if (is32)
+            c.Cleanup.Add(Path.Combine("host64", "*.log"));
+
         ApplyUserIniTweaks(c);
         if (c.Game.Mods.HasFlag(ExistingMod.Enb) && route.IsLegacy())
             c.Hints.Add("ENB wurde deaktiviert (seine d3d9.dll ist gesichert). „Rückgängig“ stellt ENB wieder her.");
@@ -345,7 +350,7 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
             c.Missing.Add($"ReShade (Vulkan-Layer, {bits} Bit)");
             return;
         }
-        c.Steps.Add(new RegisterVulkanLayerStep(json, $"ReShade als Vulkan-Layer registrieren ({bits} Bit)", is32));
+        c.Steps.Add(new RegisterVulkanLayerStep(json, $"ReShade {bits} Bit als Vulkan-Layer nach C:\\ProgramData\\ReShade (wie das offizielle Setup; eine Fassung ohne Add-on-Unterstützung wird gesichert und ersetzt)", is32));
         ReShadeIni(c);
         c.Hints.Add("Der ReShade-Vulkan-Layer greift nur in Spielen mit ReShade.ini neben der EXE.");
     }
@@ -449,13 +454,15 @@ public sealed class RoutePlanner(ComponentAvailability components, ComponentStor
         return Ids.RenoDx;
     }
 
-    private int? RenoDxMajor()
+    private int? RenoDxMajor() => RenoDxMajorVersion(store.Get(Ids.RenoDx)?.Version);
+
+    /// <summary>Hauptversion aus Tag oder Dateiname („renodx-dlss5-8.0.1“ → 8; die 5 in „dlss5“ zählt nicht).</summary>
+    internal static int? RenoDxMajorVersion(string? version)
     {
-        var version = store.Get(Ids.RenoDx)?.Version;
         if (version is null)
             return null;
-        var digits = new string(version.SkipWhile(ch => !char.IsDigit(ch)).TakeWhile(char.IsDigit).ToArray());
-        return int.TryParse(digits, out var major) ? major : null;
+        var m = System.Text.RegularExpressions.Regex.Match(version, @"(?<![\d.])(\d+)\.\d+");
+        return m.Success && int.TryParse(m.Groups[1].Value, out var major) ? major : null;
     }
 
     /// <summary>Ordner innerhalb eines Pakets, der die Leitdatei enthält (Archive haben oft einen Oberordner).</summary>

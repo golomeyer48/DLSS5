@@ -3,7 +3,7 @@ using Dlss5Optimizer.Core.Library;
 using Dlss5Optimizer.Core.Models;
 using Microsoft.Win32;
 
-namespace Dlss5Optimizer.App.Platform;
+namespace Dlss5Optimizer.Platform;
 
 /// <summary>Liest GPU, Treiber, Monitor und relevante Windows-Einstellungen.</summary>
 public static class WindowsSystem

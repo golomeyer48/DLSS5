@@ -20,6 +20,16 @@ public class PeFileTests
     }
 
     [Fact]
+    public void ReadsExportNames()
+    {
+        var pe = PeFile.TryRead(new MemoryStream(TestPe.Build(TestPe.I386, ["kernel32.dll"], exports: ["ReShadeRegisterAddon", "ReShadeUnregisterAddon"])));
+
+        Assert.NotNull(pe);
+        Assert.Equal(["ReShadeRegisterAddon", "ReShadeUnregisterAddon"], pe.Exports);
+        Assert.Empty(PeFile.TryRead(new MemoryStream(TestPe.Build(TestPe.Amd64, ["kernel32.dll"])))!.Exports);
+    }
+
+    [Fact]
     public void Reads32BitWithVaStyleDelayImports()
     {
         var bytes = TestPe.Build(TestPe.I386, ["d3d9.dll"], ["ddraw.dll"], delayUsesVa: true);
@@ -129,6 +139,18 @@ public class GameAnalyzerTests
         Assert.True(a.Upscalers.Has(UpscalerFeature.Xess));
         Assert.Equal(new Version(310, 4, 0, 0), a.Upscalers.DlssVersion);
         Assert.False(a.AntiCheat.Detected);
+    }
+
+    [Fact]
+    public void D3d9ImportForPixMarkersDoesNotMakeADx10GameDx9()
+    {
+        // Devil May Cry 4 SE: d3d10_1.dll für das Rendern, d3d9.dll nur für D3DPERF_*.
+        using var t = new TempDir();
+        TestPe.Write(t.Combine("DevilMayCry4SpecialEdition.exe"), TestPe.I386, ["kernel32.dll", "d3d9.dll", "d3d10_1.dll", "dxgi.dll"], largeAddressAware: true);
+
+        var a = Analyzer().Analyze(new GameInfo("DMC4SE", t.Path, GameSource.Manual));
+
+        Assert.Equal(GraphicsApi.D3D10, a.Api.Primary);
     }
 
     [Fact]

@@ -5,7 +5,7 @@ using System.Windows;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Dlss5Optimizer.App.Platform;
+using Dlss5Optimizer.Platform;
 using Dlss5Optimizer.App.Services;
 using Dlss5Optimizer.Core.Benchmark;
 using Dlss5Optimizer.Core.Components;
@@ -278,6 +278,19 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        // Zwei ReShade-Layer blockieren sich: Nur einer lädt – ist es der fremde, fehlt das Add-on.
+        foreach (var layer in plan.Steps.OfType<RegisterVulkanLayerStep>())
+        {
+            var others = VulkanLayer.OtherReShadeLayers(layer.Is32Bit);
+            if (others.Count > 0 && _dialogs.Confirm("Weiterer ReShade-Vulkan-Layer",
+                    "Es ist bereits ein anderer ReShade-Vulkan-Layer registriert:\n" + string.Join("\n", others)
+                    + "\n\nEs lädt immer nur eine ReShade-Instanz. Ist es diese, startet das DLSS-5-Add-on nicht.\n\nDen anderen Layer abmelden? (Seine Dateien bleiben liegen.)", warning: true))
+            {
+                VulkanLayer.UnregisterEverywhere(others);
+                Log("Fremde ReShade-Vulkan-Layer abgemeldet: " + string.Join(", ", others));
+            }
+        }
+
         var lines = plan.Steps.Where(st => st is not ManualStep).Select(st => "• " + st.Description)
             .Append("")
             .Append("Danach im Spiel:")
@@ -290,6 +303,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         await RunBusy("Installiere …", () => Task.Run(() => _s.Installer.Install(plan)));
         Log($"{game.Name}: {candidate.Route.Name} installiert ({plan.Steps.Count} Schritte).");
+        if (plan.Steps.OfType<RegisterVulkanLayerStep>().Any() && VulkanLayer.LastDeploy is { } deploy)
+            Log($"{game.Name}: {deploy.Describe()}.");
         if (game.Recommendation?.ApiSwitch is { } sw && sw.To == candidate.Config.Api)
             _dialogs.Info("API umstellen", $"Wichtig: {sw.How}");
         Recompute(game);
@@ -501,6 +516,12 @@ public sealed partial class MainViewModel : ObservableObject
         }
         foreach (var problem in g.IntegrityProblems)
             lines.Add($"⚠ {problem} – „Reparieren“ installiert neu.");
+        if (manifest.Config.Route.UsesDxvk() || manifest.Config.Api == GraphicsApi.Vulkan)
+        {
+            var others = VulkanLayer.OtherReShadeLayers(g.Analysis.Bitness == Bitness.X86);
+            if (others.Count > 0)
+                lines.Add($"⚠ Weiterer ReShade-Vulkan-Layer registriert ({string.Join(", ", others)}) – er kann das DLSS-5-Add-on verdrängen. „DLSS 5 installieren“ bietet an, ihn abzumelden.");
+        }
         foreach (var c in report.Checks)
             Log($"{g.Name}: Diagnose {c.Title}: {c.Status}");
 

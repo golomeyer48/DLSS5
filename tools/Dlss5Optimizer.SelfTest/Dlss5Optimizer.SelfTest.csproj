@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Selbsttest gegen die echte Welt: lädt alle Komponenten aus ihren Originalquellen, installiert jede
+       Route in nachgebaute Spielordner und nimmt sie wieder zurück. Unter Windows (net10.0-windows)
+       zusätzlich Registry, Ereignisprotokoll und Prozess-Module. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>Dlss5Optimizer.SelfTest</RootNamespace>
+    <AssemblyName>dlss5-selftest</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Dlss5Optimizer.Core\Dlss5Optimizer.Core.csproj" />
+    <!-- Baut die nachgebauten Spiel-EXEs (gültige PE-Dateien mit gewünschten Imports). -->
+    <Compile Include="..\..\tests\Dlss5Optimizer.Core.Tests\TestPe.cs" Link="TestPe.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <ProjectReference Include="..\..\src\Dlss5Optimizer.Windows\Dlss5Optimizer.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

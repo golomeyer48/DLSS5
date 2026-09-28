@@ -9,10 +9,11 @@ internal static class TestPe
     public const ushort I386 = 0x014C;
     public const ushort Amd64 = 0x8664;
 
-    public static byte[] Build(ushort machine, string[] imports, string[]? delayImports = null, Version? version = null, bool delayUsesVa = false, bool largeAddressAware = false)
+    public static byte[] Build(ushort machine, string[] imports, string[]? delayImports = null, Version? version = null, bool delayUsesVa = false, bool largeAddressAware = false, string[]? exports = null)
     {
         bool pe32Plus = machine != I386;
         delayImports ??= [];
+        exports ??= [];
         const uint sectionRva = 0x1000;
         const int sectionFileOffset = 0x200;
         const ulong imageBase = 0x140000000;
@@ -59,6 +60,33 @@ internal static class TestPe
         names.Position = 0;
         names.CopyTo(sec);
 
+        // Export-Verzeichnis (40 Bytes) + Namenszeiger + Namen – nur, was ein Namensvergleich braucht.
+        uint exportRva = 0, exportSize = 0;
+        if (exports.Length > 0)
+        {
+            while (sec.Length % 4 != 0)
+                sec.WriteByte(0);
+            exportRva = sectionRva + (uint)sec.Length;
+            uint pointersRva = exportRva + 40;
+            uint namesRva = pointersRva + (uint)exports.Length * 4;
+            var dir = new byte[40];
+            BinaryPrimitives.WriteUInt32LittleEndian(dir.AsSpan(24), (uint)exports.Length);
+            BinaryPrimitives.WriteUInt32LittleEndian(dir.AsSpan(32), pointersRva);
+            sec.Write(dir);
+            var exportNames = new MemoryStream();
+            var ptr = new byte[4];
+            foreach (var name in exports)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(ptr, namesRva + (uint)exportNames.Length);
+                sec.Write(ptr);
+                exportNames.Write(Encoding.ASCII.GetBytes(name));
+                exportNames.WriteByte(0);
+            }
+            exportNames.Position = 0;
+            exportNames.CopyTo(sec);
+            exportSize = (uint)(sectionRva + sec.Length - exportRva);
+        }
+
         uint resourceRva = 0, resourceSize = 0;
         if (version is not null)
         {
@@ -101,6 +129,7 @@ internal static class TestPe
             BinaryPrimitives.WriteUInt32LittleEndian(file.AsSpan(opt + dirs + index * 8), rva);
             BinaryPrimitives.WriteUInt32LittleEndian(file.AsSpan(opt + dirs + index * 8 + 4), size);
         }
+        Dir(0, exportRva, exportSize);
         Dir(1, sectionRva, (uint)importDescSize);
         Dir(2, resourceRva, resourceSize);
         if (delayImports.Length > 0)
@@ -117,10 +146,10 @@ internal static class TestPe
         return file;
     }
 
-    public static string Write(string path, ushort machine, string[] imports, string[]? delayImports = null, Version? version = null, byte[]? trailer = null, bool largeAddressAware = false)
+    public static string Write(string path, ushort machine, string[] imports, string[]? delayImports = null, Version? version = null, byte[]? trailer = null, bool largeAddressAware = false, string[]? exports = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var bytes = Build(machine, imports, delayImports, version, largeAddressAware: largeAddressAware);
+        var bytes = Build(machine, imports, delayImports, version, largeAddressAware: largeAddressAware, exports: exports);
         if (trailer is not null)
             bytes = [.. bytes, .. trailer];
         File.WriteAllBytes(path, bytes);

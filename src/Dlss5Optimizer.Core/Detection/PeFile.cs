@@ -15,6 +15,7 @@ public sealed class PeFile
     private const ushort MachineArm64 = 0xAA64;
     private const ushort MagicPe32 = 0x10B;
     private const ushort MagicPe32Plus = 0x20B;
+    private const int DirExport = 0;
     private const int DirImport = 1;
     private const int DirResource = 2;
     private const int DirDelayImport = 13;
@@ -34,6 +35,9 @@ public sealed class PeFile
     /// Feeder im Prozess reicht das bei alten, gemoddeten Spielen oft nicht (4GB-Patch).
     /// </summary>
     public bool LargeAddressAware { get; private init; }
+
+    /// <summary>Exportierte Funktionsnamen (z. B. ReShadeRegisterAddon bei ReShade mit Add-on-Unterstützung).</summary>
+    public IReadOnlyList<string> Exports { get; private init; } = [];
 
     /// <summary>Alle importierten DLL-Namen (statisch + verzögert), kleingeschrieben.</summary>
     public IEnumerable<string> AllImports => Imports.Concat(DelayImports);
@@ -144,6 +148,7 @@ public sealed class PeFile
         return new PeFile(bitness, imageBase, sections, imports, delay, version)
         {
             LargeAddressAware = (characteristics & LargeAddressAwareFlag) != 0,
+            Exports = pe.ReadExports(s, Dir(DirExport).Rva),
         };
     }
 
@@ -166,6 +171,29 @@ public sealed class PeFile
             var name = ReadAsciiZ(s, nameRva);
             if (!string.IsNullOrEmpty(name))
                 result.Add(name.ToLowerInvariant());
+        }
+        return result;
+    }
+
+    private List<string> ReadExports(Stream s, uint rva)
+    {
+        var result = new List<string>();
+        if (rva == 0)
+            return result;
+        long? off = RvaToOffset(rva);
+        if (off is null)
+            return result;
+        // IMAGE_EXPORT_DIRECTORY: NumberOfNames an Offset 24, AddressOfNames (RVA) an Offset 32.
+        var dir = ReadAt(s, off.Value, 40);
+        uint count = Math.Min(BinaryPrimitives.ReadUInt32LittleEndian(dir.AsSpan(24)), 16384);
+        long? names = RvaToOffset(BinaryPrimitives.ReadUInt32LittleEndian(dir.AsSpan(32)));
+        if (names is null || count == 0)
+            return result;
+        var pointers = ReadAt(s, names.Value, (int)count * 4);
+        for (int i = 0; i < count; i++)
+        {
+            if (ReadAsciiZ(s, BinaryPrimitives.ReadUInt32LittleEndian(pointers.AsSpan(i * 4))) is { Length: > 0 } name)
+                result.Add(name);
         }
         return result;
     }
