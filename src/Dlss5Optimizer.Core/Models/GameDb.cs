@@ -52,6 +52,12 @@ public sealed record GameDbEntry
     public string[] LaunchExes { get; init; } = [];
 
     /// <summary>
+    /// Die <see cref="LaunchExes"/> entfallen, sobald die Haupt-EXE 4GB-gepatcht ist: Der „FNV 4GB Patcher“ lässt
+    /// FalloutNV.exe NVSE selbst laden, nvse_loader.exe ist dann überflüssig.
+    /// </summary>
+    public bool LoaderNotNeededWhenPatched { get; init; }
+
+    /// <summary>
     /// Die eigentliche Spiel-EXE hinter einem Launcher (Fallout 3: Fallout3.exe → Fallout3ng.exe). Sie wird
     /// gestartet, wenn das Spiel ohne Steam laufen muss, und beim Messen gesucht.
     /// </summary>

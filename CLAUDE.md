@@ -77,6 +77,13 @@ Die App verlangt Adminrechte (app.manifest). Daten und Log: `%LOCALAPPDATA%\DLSS
   dem veränderten Modell, ReShade als dxgi.dll, alten RenoDX-/Feeder-Add-ons). Vor dem Installieren prüfen und nach
   `%LOCALAPPDATA%\DLSS5Optimizer\patcher-reste\<Spiel>` **verschieben, nie löschen**. `preexisting.txt` im
   `.dlss5_backup` nennt, was vor dem Patcher da war.
+- **32-Bit-Spiele brauchen den 4GB-Patch**, sobald Mods dazukommen: DXVK meldet sonst „Memory allocation failed“ /
+  „InitTexture: map failed“ bei fast leerem Grafikspeicher (Adressraum voll) und stürzt in `d3d9.dll` ab. Die
+  Diagnose erkennt das (`AddressSpaceTitle`) und nennt `largeAddressHint` aus games.json. Das Tool patcht keine
+  EXE selbst (Steam-Fassungen brauchen das passende Werkzeug, bei New Vegas „FNV 4GB Patcher“ → `FNVpatch.exe`).
+  Der FNV-Patcher lässt FalloutNV.exe NVSE selbst laden → `loaderNotNeededWhenPatched`, direkt starten.
+- Windows-Absturzereignisse wertet die Diagnose erst ab dem letzten Start über das Tool (`AppSettings.LastLaunches`);
+  vorher markierte ein alter Absturz den funktionierenden Weg als „gescheitert“ (`RouteOutcomes`).
 - Referenzen: `jlrouzies-fr/DLSS5-Feeder` (README, Issues #95 Steam-Overlay, #135 New Vegas),
   `perseval-BLR/dlss5-classic-games` (bestätigte Klassiker, Skripte unter `scripts/`), `xdzleo/dlss5-launcher`,
   Gillian's GTA IV Guide (commandline.txt), DXVK-Issue #1831.
@@ -96,14 +103,14 @@ Die App verlangt Adminrechte (app.manifest). Daten und Log: `%LOCALAPPDATA%\DLSS
 - Handänderungen in Spielordnern überleben kein „Reparieren“, wenn sie dem gespeicherten Manifest widersprechen –
   dem Nutzer das jeweils sagen.
 
-## Stand (28.09.2026, abends) – Übergabe
+## Stand (29.09.2026, abends) – Übergabe
 
 ### Spiele beim Nutzer
 
 | Spiel | Weg | Stand |
 |---|---|---|
 | Fallout 3 GOTY (Steam) | DXVK + Feeder + RenoDX, Direktstart Fallout3ng.exe | läuft, 223 200 Bilder, ~47 fps (Modell 100 %) |
-| Fallout: New Vegas (Steam) | wie FO3, Direktstart FalloutNV.exe | läuft, ~44–48 fps (Modell 100 %) |
+| Fallout: New Vegas (Steam) | wie FO3; seit 29.09. mit Vortex gemoddet (xNVSE + ~22 Plugins, u. a. Shader Loader, DynamicReflections, JIP, Stewie Tweaks) | Absturz (Adressraum voll) behoben: 4GB-Patch am 29.09., 19:09 ausgeführt, danach lief DLSS 5 (Diagnose grün). **Neues Problem: keine Stimmen/Geräusche, nur leise Musik.** DirectX-Audio (XAudio2_7) vorhanden, TV 48 kHz/16 Bit/Stereo; Spiel-Log nur 53 fehlende Sounddateien (Staubteufel) → vermutlich Mods. **Tontest läuft: DXVK abgeschaltet** (`d3d9.dll.test-aus`) |
 | Ultra Street Fighter IV | DXVK + Feeder + RenoDX | läuft mit 60 fps bei `NRResolutionScale=0.5` – **von Hand**, Manifest sagt noch 100 % |
 | GTA IV Complete Edition | DXVK + Feeder + RenoDX, Modell 50 % | läuft, 4K 60 fps; commandline.txt und kräftige Regler **von Hand** gesetzt, Nutzer zufrieden |
 | Batman: Arkham Asylum GOTY | DXVK + Feeder + RenoDX | Absturzursache (fremdes AutoHDR.addon32) beseitigt – **Test mit ganzer Kette steht aus** |
@@ -119,22 +126,30 @@ Die App verlangt Adminrechte (app.manifest). Daten und Log: `%LOCALAPPDATA%\DLSS
   Beides kann die neue EXE jetzt selbst (Stärke „kräftig“ wählen, dann Reparieren).
 - Old Blood: `renodx-dlss5.addon64.test-aus`, Deep-Fried-Chicken-Dateien kopiert, `ReShade.ini` mit
   `LoadFromDllMain=deep-fried-chicken.addon64` (Sicherung `ReShade.ini.vor-dfc-test`).
+- **New Vegas: `d3d9.dll` ist in `d3d9.dll.test-aus` umbenannt** (Tontest ohne unsere Kette) – nach dem Test
+  zurückbenennen, sonst läuft kein DLSS 5. `FalloutNV.exe` ist 4GB-gepatcht (`FalloutNV_backup.exe` = Original,
+  `FNVpatch.exe` liegt im Ordner).
+- `settings.json`: falschen Eintrag „New Vegas / LegacyDxvkFeeder gescheitert“ am 29.09. von Hand entfernt
+  (Sicherung `settings.json.vor-korrektur`); mit dem Tool-Code geprüft, Datei ist gültig.
 - Verschoben nach `patcher-reste\`: Fallout New Vegas, Alan Wake 2, Batman Arkham Asylum GOTY.
 
 ### Offene Punkte (in dieser Reihenfolge)
 
-1. Alles bis hier ist committet (Modellauflösung über RenoDX + `NrCostFactor`, USF4-/GTA-IV-/Alan-Wake-2-Einträge,
-   `CommandLineFile`, „DLSS-5-Stärke“, Streamline-Erkennung, `SetAsideForeignAddons`); `publish\DLSS5Optimizer.exe`
-   vom 28.09., 22:18 enthält es. Ob gepusht wurde: `git status -sb` prüfen.
-2. Nutzer auf die neue Einstellung „DLSS-5-Stärke“ hinweisen (neben dem Optimierungsziel).
-3. Old-Blood-Test auswerten. Wenn Deep Fried Chicken läuft: Planer im 64-Bit-OpenGL-Weg nie RenoDX, und dort
+1. **New-Vegas-Ton:** Ergebnis des Tontests (DXVK aus) abfragen. Ton weiter weg → Mods (Nutzer soll in Vortex in
+   Gruppen abschalten; auf Sound-Mods/-Einstellungen achten). Ton wieder da → unsere Kette untersuchen
+   (erst ReShade.ini, dann Feeder-Add-on umbenennen). Danach `d3d9.dll` zurückbenennen.
+2. **Git:** Alles bis zum 29.09. abends ist committet und nach `origin/main` gepusht (zuletzt: Adressraum-Diagnose,
+   `loaderNotNeededWhenPatched`, `LastLaunches`, diese Übergabe; 158 Tests grün). Mit `git status -sb` prüfen.
+   `publish\DLSS5Optimizer.exe` vom 29.09., 19:24 enthält alles.
+3. Nutzer auf „DLSS-5-Stärke“ hinweisen – steht bei ihm noch auf „Standard“ (wirkt nach Reparieren/Neuinstallation).
+4. Old-Blood-Test auswerten. Wenn Deep Fried Chicken läuft: Planer im 64-Bit-OpenGL-Weg nie RenoDX, und dort
    keine Modellauflösung < 100 % anbieten (`RouteCatalog` Feeder `ModelScaleApis` ohne OpenGL) – mit Test.
-4. Arkham-Asylum-Test mit ganzer Kette auswerten.
-5. Alan Wake 2: Nutzer „DLSS 5 installieren“ klicken lassen, dann testen – zuerst ohne Pathtracing/Ray
+5. Arkham-Asylum-Test mit ganzer Kette auswerten.
+6. Alan Wake 2: Nutzer „DLSS 5 installieren“ klicken lassen, dann testen – zuerst ohne Pathtracing/Ray
    Reconstruction (unklar, ob OptiScaler-NR bei DLSS-RR greift). Danach Stärke über OptiScaler.ini `[DlssNr]` erhöhen
    (Nutzer wünscht mehr Intensität) – die Schlüssel dort vorher im installierten OptiScaler.ini nachlesen.
-6. Stärke-Einstellung auch für Deep Fried Chicken (Regler in `deep-fried-chicken.cfg`) und OptiScaler anbieten.
-7. Patcher-Reste automatisch erkennen (`.dlss5_backup`) und das Verschieben im Tool anbieten; laut Patcher-Log
+7. Stärke-Einstellung auch für Deep Fried Chicken (Regler in `deep-fried-chicken.cfg`) und OptiScaler anbieten.
+8. Patcher-Reste automatisch erkennen (`.dlss5_backup`) und das Verschieben im Tool anbieten; laut Patcher-Log
    betroffen u. a. Cyberpunk, RDR2, Wolfenstein II, Skyrim SE, Watch Dogs, Resident Evil 2.
-8. FO3/FNV laufen mit 100 % bei ~47 fps; das neue Kostenmodell empfiehlt bei Neuinstallation < 100 % für 60 fps.
+9. FO3/FNV laufen mit 100 % bei ~47 fps; das neue Kostenmodell empfiehlt bei Neuinstallation < 100 % für 60 fps.
    Nutzer fragen, ob ihm 60 fps oder volle Auflösung lieber ist.

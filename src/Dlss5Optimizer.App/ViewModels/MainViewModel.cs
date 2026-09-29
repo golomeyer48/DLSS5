@@ -416,6 +416,8 @@ public sealed partial class MainViewModel : ObservableObject
                 foreach (var change in _s.Installer.ReapplyIniTweaks(gameDir, g.Analysis.DbEntry?.UserIniTweaks ?? []))
                     Log($"{g.Name}: {change} – das Spiel hatte die Einstellung zurückgesetzt.");
             GameLauncher.Launch(g.Analysis.Game, g.Analysis.MainExe, args, choice.Exe);
+            _s.Settings.LastLaunches[g.Analysis.Game.Key] = DateTimeOffset.Now;
+            _s.SaveSettings();
             Log($"{g.Name} gestartet{(choice.Exe is { } direct ? $" über {Path.GetFileName(direct)} ({choice.Reason})" : "")}{(args is null ? "" : " mit " + args)}. In eine typische Spielszene gehen, dann „Messen“.");
         }
         catch (Exception e)
@@ -525,13 +527,17 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var (crashes, crashLines) = CrashLog.Recent(Path.GetFileName(exe), manifest.InstalledAt.LocalDateTime);
+        // Nur Abstürze seit dem letzten Start über das Tool – ältere stammen aus einem früheren Lauf (z. B. vor einem Patch).
+        var since = manifest.InstalledAt;
+        if (_s.Settings.LastLaunches.TryGetValue(g.Analysis.Game.Key, out var lastLaunch) && lastLaunch > since)
+            since = lastLaunch;
+        var (crashes, crashLines) = CrashLog.Recent(Path.GetFileName(exe), since.LocalDateTime);
         var report = InstallDiagnostics.Evaluate(dir, manifest, Path.GetFileName(exe), crashes, g.Analysis.DbEntry);
         var lines = report.Checks.Select(c => $"{Symbol(c.Status)} {c.Title}\n   {c.Detail}").ToList();
         if (crashLines.Count > 0)
         {
             lines.Add("");
-            lines.Add("✗ Windows-Ereignisprotokoll seit der Installation:");
+            lines.Add(since == manifest.InstalledAt ? "✗ Windows-Ereignisprotokoll seit der Installation:" : "✗ Windows-Ereignisprotokoll seit dem letzten Start:");
             lines.AddRange(crashLines.Select(c => "   " + c));
         }
         foreach (var problem in g.IntegrityProblems)

@@ -64,8 +64,12 @@ public static class InstallDiagnostics
     /// </summary>
     public static DiagnosticReport Evaluate(string gameDir, InstallManifest manifest, string exeName, IReadOnlyList<CrashInfo> crashes, GameDbEntry? db = null)
     {
-        var checks = Check(gameDir, manifest, exeName);
+        var checks = Check(gameDir, manifest, exeName, db);
         var route = manifest.Config.Route;
+
+        // Voller 32-Bit-Adressraum sieht wie ein Übersetzer-Absturz aus (d3d9.dll), der andere Übersetzer hilft aber nicht.
+        if (checks.FirstOrDefault(c => c.Title == AddressSpaceTitle) is { } addressSpace)
+            return new DiagnosticReport(checks, DiagnosticVerdict.NeedsAttention, addressSpace.Detail, null);
 
         var translatorCrash = route.IsLegacy() ? crashes.FirstOrDefault(c => TranslatorModules.Contains(Path.GetFileName(c.Module))) : null;
         if (translatorCrash is not null)
@@ -133,7 +137,7 @@ public static class InstallDiagnostics
         return new("Tiefenpuffer", DiagnosticStatus.Ok, "Tiefe kommt an.");
     }
 
-    public static IReadOnlyList<DiagnosticCheck> Check(string gameDir, InstallManifest manifest, string exeName)
+    public static IReadOnlyList<DiagnosticCheck> Check(string gameDir, InstallManifest manifest, string exeName, GameDbEntry? db = null)
     {
         var checks = new List<DiagnosticCheck>();
         var route = manifest.Config.Route;
@@ -172,6 +176,14 @@ public static class InstallDiagnostics
                 ? new("DXVK (DirectX 9 → Vulkan)", DiagnosticStatus.NotRunYet,
                     "Kein DXVK-Log seit der Installation. Spiel starten. Fehlt es danach weiter, lädt das Spiel die System-d3d9.dll (z. B. durch einen DirectX-Test beim Start) – dann die dgVoodoo-Route versuchen.")
                 : new("DXVK (DirectX 9 → Vulkan)", DiagnosticStatus.Ok, "DXVK läuft."));
+            // New Vegas mit Mods ohne 4GB-Patch (29.09.2026): „DxvkMemoryAllocator: Memory allocation failed“ bei 1,6 von
+            // 16 GB belegtem Grafikspeicher – der 2-GB-Adressraum des 32-Bit-Prozesses war voll, danach Absturz in d3d9.dll.
+            if (dxvk is not null && (Contains(dxvk, "Memory allocation failed") || Contains(dxvk, "InitTexture: map failed")))
+                checks.Add(new(AddressSpaceTitle, DiagnosticStatus.Failed,
+                    "Dem Spiel ist der Speicher ausgegangen: DXVK konnte keine Texturen mehr einblenden („Memory allocation failed“). "
+                    + "Bei 32-Bit-Spielen ist das der Adressraum, nicht der Grafikspeicher – viele Mods, 4K, ReShade und der Feeder brauchen mehr als 2 GB. "
+                    + (db?.LargeAddressHint ?? "Einen 4GB-Patch für dieses Spiel verwenden.")
+                    + " Hilft das nicht: weniger/kleinere Textur-Mods oder die DLSS-5-Modellauflösung senken."));
         }
 
         if (route is RouteId.OptiScalerNr)
@@ -261,6 +273,7 @@ public static class InstallDiagnostics
     }
 
     public const string CrashTitle = "Absturz beim Start";
+    public const string AddressSpaceTitle = "Speicher (32 Bit)";
 
     private const string SteamFix = "das Spiel nicht über Steam starten, sondern mit „Spiel starten“ im Tool oder per Doppelklick auf die Spiel-EXE "
                                     + "(Steam darf laufen; das Overlay in Steam auszuschalten reicht nicht)";

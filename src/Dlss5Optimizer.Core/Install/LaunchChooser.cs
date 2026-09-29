@@ -23,7 +23,8 @@ public static class LaunchChooser
         if (game.GameDir is not { } dir)
             return LaunchChoice.ViaStore;
         var db = game.DbEntry;
-        if (db?.LaunchExes.Select(l => Path.Combine(dir, l)).FirstOrDefault(File.Exists) is { } loader)
+        bool patched = db?.LoaderNotNeededWhenPatched == true && game.MainExe is { } main && Detection.PeFile.TryRead(main)?.LargeAddressAware == true;
+        if (!patched && db?.LaunchExes.Select(l => Path.Combine(dir, l)).FirstOrDefault(File.Exists) is { } loader)
             return new(loader, "Script Extender");
 
         if (installed is null || game.Game.Source != GameSource.Steam || !UsesVulkanLayer(installed.Config))

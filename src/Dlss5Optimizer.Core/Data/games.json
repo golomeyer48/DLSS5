@@ -126,6 +126,7 @@
         { "file": "%DOCUMENTS%\\My Games\\FalloutNV\\FalloutPrefs.ini", "section": "Display", "key": "iMultiSample", "value": "0", "reason": "Kantenglättung (MSAA) aus – sonst sieht ReShade keinen Tiefenpuffer" }
       ],
       "launchExes": [ "nvse_loader.exe" ],
+      "loaderNotNeededWhenPatched": true,
       "largeAddressHint": "„FNV 4GB Patcher“ (Nexus Mods) verwenden – er kommt mit der Steam-EXE zurecht. Die EXE nicht von Hand patchen.",
       "notes": [
         "dgVoodoo blockiert in New Vegas die Bildübergabe an den Feeder – deshalb DXVK, wie im Community-Mod „FNV-DLSS5“.",

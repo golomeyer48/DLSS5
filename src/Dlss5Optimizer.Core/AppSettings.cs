@@ -24,6 +24,13 @@ public sealed class AppSettings
     /// <summary>Pro Spiel die mit dem Tiefenpuffer-Assistenten gewählte Variante.</summary>
     public Dictionary<string, DepthVariant> DepthVariants { get; set; } = [];
 
+    /// <summary>
+    /// Pro Spiel der letzte Start über das Tool. Die Diagnose wertet Windows-Abstürze erst ab dann – sonst zählt ein
+    /// Absturz aus einem früheren Lauf mit (New Vegas: Absturz ohne 4GB-Patch markierte den DXVK-Weg nach dem Patch
+    /// fälschlich als gescheitert, 29.09.2026).
+    /// </summary>
+    public Dictionary<string, DateTimeOffset> LastLaunches { get; set; } = [];
+
     /// <summary>Optional: eigener Pfad zu PresentMon.exe.</summary>
     public string? PresentMonPath { get; set; }
 

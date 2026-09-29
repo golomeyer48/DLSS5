@@ -140,6 +140,40 @@ public class LegacyGameTests
         Assert.Contains(plan.Steps.OfType<IniSetStep>(), i => i.Target == Path.Combine("host64", "ReShade.ini") && i.Key == "NRResolutionScale" && i.Value == "0.5");
     }
 
+    [Theory]
+    [InlineData(false, "nvse_loader.exe")]
+    [InlineData(true, "FalloutNV.exe")]
+    public void NvseLoaderOnlyWithoutThe4GbPatch(bool patched, string expected)
+    {
+        // Der „FNV 4GB Patcher“ lässt FalloutNV.exe NVSE selbst laden – danach nicht mehr über nvse_loader.exe starten.
+        using var t = new TempDir();
+        var dir = NewVegasFolder(t, withEnb: false, largeAddressAware: patched);
+        var a = new GameAnalyzer(GameDatabase.LoadEmbedded()).Analyze(new GameInfo("Fallout: New Vegas", dir, GameSource.Steam, "22380"));
+        var manifest = new InstallManifest(1, DateTimeOffset.Now,
+            new Configuration(RouteId.LegacyDxvkFeeder, GraphicsApi.D3D9, SrMode.Native, 1, NrPlacement.PostUpscale, FrameGenMode.Off), [], [], [], []);
+
+        Assert.EndsWith(expected, LaunchChooser.Choose(a, manifest).Exe);
+    }
+
+    [Fact]
+    public void FullAddressSpaceIsNamedInsteadOfTranslatorCrash()
+    {
+        // New Vegas mit Mods, ohne 4GB-Patch (29.09.2026): DXVK findet keinen Adressraum mehr, danach Absturz in d3d9.dll.
+        using var t = new TempDir();
+        var dir = t.Dir("fnv");
+        t.File("fnv/FalloutNV_d3d9.log", "info:  DXVK: v3.0.2\nerr:   D3D9: InitTexture: map failed\nerr:   DxvkMemoryAllocator: Memory allocation failed\n");
+        var fnv = GameDatabase.LoadEmbedded().Entries.Single(e => e.Name == "Fallout: New Vegas");
+        var manifest = new InstallManifest(1, DateTimeOffset.Now.AddMinutes(-5),
+            new Configuration(RouteId.LegacyDxvkFeeder, GraphicsApi.D3D9, SrMode.Native, 1, NrPlacement.PostUpscale, FrameGenMode.Off), [], [], [], []);
+
+        var report = InstallDiagnostics.Evaluate(dir, manifest, "FalloutNV.exe", [new CrashInfo("d3d9.dll", "0xc0000005", DateTime.Now)], fnv);
+
+        Assert.Equal(DiagnosticVerdict.NeedsAttention, report.Verdict);
+        Assert.Null(report.SwitchTo);
+        Assert.Contains("4GB", report.Summary);
+        Assert.Contains(report.Checks, c => c.Title == InstallDiagnostics.AddressSpaceTitle && c.Status == DiagnosticStatus.Failed);
+    }
+
     [Fact]
     public void ForeignReShadeAddonsAreSetAsideButOwnStay()
     {
